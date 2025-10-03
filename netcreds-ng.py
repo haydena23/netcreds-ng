@@ -16,7 +16,7 @@ import argparse
 import sys
 import platform
 from subprocess import Popen, PIPE, DEVNULL
-from typing import Optional, Sequence
+from typing import Optional, Sequence, List
 from os import geteuid
 
 APP_NAME = "netcreds-ng"
@@ -30,7 +30,7 @@ ROOT = 0
 def update() -> None:
     """Check for the latest version. Update if requested."""
     
-def interface_finder() -> bytes | None:
+def interface_finder() -> Optional[bytes]:
     """Search for a valid interface, depending on the OS"""
     os = platform.system()
     if os == "Linux":
@@ -42,6 +42,12 @@ def interface_finder() -> bytes | None:
     else:
         print(f"[!] Currently only Linux is supported")
         SystemExit(ERROR)
+
+def bfp_filter(ips : List[str]) -> Optional[str]:
+    """Build filter string containing IPs to exclude"""
+    if not ips:
+        return None
+    return ", ".join(f"Not Host(s): {ip}" for ip in ips)
 
 def parse_packet() -> None:
     """Parse a network packet extracted from PCAP"""
@@ -57,7 +63,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     parser.add_argument("-u", "--update", help="Update to the latest version of netcreds-ng")
 
     filter_group = parser.add_mutually_exclusive_group()
-    filter_group.add_argument("-f", "--filterip", help="Do not sniff packets from host1,host2,...", type=str)
+    filter_group.add_argument("-f", "--filter", help="Do not sniff packets from host1,host2,...", type=str)
     filter_group.add_argument("-F", "--filterfile", help="Do not sniff packets new-line delimeted file", type=str)
     
     args = parser.parse_args(argv)
@@ -75,7 +81,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             # Lazy import of Scapy for performance
             from scapy.utils import PcapReader
             for packet in PcapReader(args.pcap):
-                # parse_packet(packet)
+                # packet_parser(packet)
                 pass
         except IOError as e:
             print(f"[!] Could not open PCAP file: {e}", file=sys.stderr)
@@ -100,7 +106,25 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             conf.iface = args.interface
         else:
             conf.iface = interface_finder()
-        print(f"[*] Using Interface: {conf.iface}") # type: ignore
+        print(f"[*] Using Interface: {(conf.iface).decode()}") # type: ignore
+
+        filter_ips: List[str] = []
+        if args.filter:
+            filter_ips.extend([ip.strip() for ip in args.filter.split(",") if ip.strip()])
+        elif args.filterfile:
+            try:
+                with open(args.filterfile, "r") as f:
+                    filter_ips.extend([line.strip() for line in f if line.strip()])
+            except IOError as e:
+                print(f"[!] Could not open filter file: {e}", file=sys.stderr)
+                return ERROR 
+            
+        sniff(
+            iface=conf.iface, # type: ignore
+            prn=packet_parser, 
+            store=0, 
+            filter=bfp_filter(args.filterip | args.filterfile)
+        )
 
     return SUCCESS
 
