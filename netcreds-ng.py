@@ -15,17 +15,16 @@ To-Do:
 
 from __future__ import annotations
 
-import logging
 import argparse
-import platform
-from subprocess import Popen, PIPE, DEVNULL
-from typing import Optional, Sequence, List, ByteString
+import logging
+from typing import Optional, Sequence, List
+
+from scapy.all import PcapReader, sniff, conf
 from os import geteuid # type: ignore
-from scapy.all import PcapReader, sniff, conf, Raw
-from scapy.layers.l2 import Ether
-from scapy.layers.inet import IP, UDP
-from scapy.layers.inet6 import IPv6
-from scapy.layers.snmp import SNMP
+
+from logging_config import setup_logging
+from utils import interface_finder, bfp_filter
+from parse_packet import parse_packet
 
 APP_NAME = "netcreds-ng"
 __version__ = "1.0.0"
@@ -35,67 +34,9 @@ ERROR = 1
 INTERRUPT = 130
 ROOT = 0
 
-class LoggingFormatter(logging.Formatter):
-    def __init__(self, fmt_debug: str, fmt_info: str):
-        super().__init__()
-        self.fmt_debug = fmt_debug
-        self.fmt_info = fmt_info
-
-    def format(self, record: logging.LogRecord) -> str:
-        if record.levelno == logging.DEBUG:
-            self._style._fmt = self.fmt_debug
-        else:
-            self._style._fmt = self.fmt_info
-        return super().format(record)
-
 def update() -> None:
     """Check for the latest version. Update if requested."""
-    
-def interface_finder() -> Optional[str]:
-    """Search for a valid interface, depending on the OS"""
-    os = platform.system()
-    if os == "Linux":
-        ip_route = Popen(['/sbin/ip', 'route'], stdout=PIPE, stderr=DEVNULL)
-        for line in ip_route.communicate()[0].splitlines():
-            if b"default" in line:
-                interface = line.split()[4]
-                return interface.decode("utf-8")
-    else:
-        print(f"[!] Currently only Linux is supported")
-        SystemExit(ERROR)
-
-def bfp_filter(ips : List[str]) -> Optional[str]:
-    """Build filter string containing IPs to exclude"""
-    if not ips:
-        return None
-    return "Not Host(s): " + ", ".join(f"{ip}" for ip in ips)
-
-def parse_packet(packet : Ether) -> None:
-    """Parse a network packet"""
-
-    load: Optional[ByteString] = None
-    if packet.haslayer(Raw):
-        load = packet[Raw].load
-    
-    """
-    Drop Ethernet packets with just a raw load because these are usually network
-    controls such as flow control
-    """
-    if (packet.haslayer(Ether)
-        and packet.haslayer(Raw)
-        and not packet.haslayer(IP)
-        and not packet.haslayer(IPv6)):
-        return
-    
-    if packet.haslayer(UDP) and packet.haslayer(IP):
-        src_ip_port: str = str(packet[IP].src) + ":" + str(packet[UDP].sport)
-        dst_ip_port: str = str(packet[IP].dst) + ':' + str(packet[UDP].dport)
-
-        if packet.haslayer(SNMP):
-            parse_snmp(src_ip_port, dst_ip_port, packet[SNMP])
-            return
-    
-    logging.debug(load)
+    logging.error(f"Update not supported yet")
 
 def main(argv: Optional[Sequence[str]] = None) -> int:
     parser = argparse.ArgumentParser(
@@ -116,26 +57,12 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     
     args = parser.parse_args(argv)
 
-    # Setup logging
-    fmt_debug = "[%(asctime)s] [DEBUG] %(filename)s:%(lineno)d: %(message)s"
-    fmt_info = "[%(levelname)s] %(message)s"
-
-    handler = logging.StreamHandler()
-    handler.setFormatter(LoggingFormatter(fmt_debug, fmt_info))
-    log_level: int = (
-        logging.DEBUG if args.verbose
-        else logging.CRITICAL if args.quiet
-        else logging.INFO
-    )
-    logging.basicConfig(
-        handlers=[handler],
-        level=log_level
-    )
+    setup_logging(args.verbose, args.quiet)
 
     if args.update:
         try:
             update()
-            return SUCCESS
+            return ERROR
         except Exception as e:
             logging.error(f"[!] Error updating netcreds-ng: {e}")
             return ERROR
@@ -171,6 +98,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             except IOError as e:
                 logging.error(f"Could not open filter file: {e}")
                 return ERROR 
+            
         sniff(
             iface=conf.iface, # type: ignore
             prn=parse_packet, 
