@@ -18,6 +18,7 @@ from pyasn1.codec.der import decoder
 def parse_snmp(src_ip_port: str, dst_ip_port: str, snmp_packet: SNMP) -> None:
     """Parses SNMP packets."""
     # Placeholder for SNMP parsing logic
+    logging.debug(f"SNMP packet details: Version={snmp_packet.version.val}, Community='{snmp_packet.community.val}'")
     logging.info(f"SNMP packet from {src_ip_port} to {dst_ip_port}")
 
 def parse_kerberos(src_ip_port: str, dst_ip_port: str, kerb_data: bytes) -> None:
@@ -38,16 +39,19 @@ def parse_kerberos(src_ip_port: str, dst_ip_port: str, kerb_data: bytes) -> None
         # The 'asn1Spec' tells the decoder what structure to expect (an AS_REQ).
         # The decoder returns the object and any remaining bytes (ignore).
         as_req_message, _ = decoder.decode(kerb_data, asn1Spec=AS_REQ()) # type: ignore
-
+        logging.debug(f"Decoded AS-REQ message structure: {as_req_message.prettyPrint()}") # type: ignore
         # The 'padata' field contains a list of pre-authentication entries.
         pre_authentication_data_list = as_req_message['padata'] # type: ignore
+        logging.debug(f"Found {len(pre_authentication_data_list)} pre-authentication data entries.") # type: ignore
 
         for pre_auth_entry in pre_authentication_data_list: # type: ignore
 
             # Look for the entry that contains the user's encrypted timestamp.
             # Entry is the source of the crackable hash.
             entry_type = pre_auth_entry['padata-type'] # type: ignore
+            logging.debug(f"Processing pre-authentication entry of type: {entry_type}")
             if entry_type == constants.PreAuthenticationDataTypes.PA_ENC_TIMESTAMP.value:
+                logging.debug("Found PA-ENC-TIMESTAMP pre-authentication entry.")
                 # --- Data Extraction ---
                 # This is the encrypted data for the hash.
                 encrypted_timestamp = pre_auth_entry['padata-value'] # type: ignore
@@ -55,14 +59,18 @@ def parse_kerberos(src_ip_port: str, dst_ip_port: str, kerb_data: bytes) -> None
                 # Cast the pyasn1 'KerberosString' objects to standard Python strings.
                 username = str(as_req_message['req-body']['cname']['name-string'][0]) # type: ignore
                 realm = str(as_req_message['req-body']['realm']) # type: ignore
+                logging.debug(f"Extracted Username: {username}")
+                logging.debug(f"Extracted Realm: {realm}")
 
                 # Cast the pyasn1 'OctetString' to 'bytes' before passing to hexlify.
                 encrypted_timestamp_hex = hexlify(bytes(encrypted_timestamp)).decode('utf-8') # type: ignore
+                logging.debug(f"Extracted Encrypted Timestamp (Hex): {encrypted_timestamp_hex[:64]}...")
 
                 # --- Hash Construction ---
                 # Assemble the components into the standard format recognized by tools
                 # like Hashcat ($krb5pa$23$...).
                 crackable_hash = f"$krb5pa$23${username}${realm}$DummySalt${encrypted_timestamp_hex}"
+                logging.debug(f"Constructed crackable hash: {crackable_hash}")
 
                 logging.info(f"MS Kerberos from {src_ip_port} to {dst_ip_port}: {crackable_hash}")
                 
@@ -78,31 +86,42 @@ def parse_kerberos(src_ip_port: str, dst_ip_port: str, kerb_data: bytes) -> None
 def parse_packet(packet: Ether) -> None:
     """Parse a network packet."""
     load: Optional[ByteString] = None
+    logging.debug("-" * 25 + " New Packet Captured " + "-" * 25)
     if packet.haslayer(Raw):
         load = packet[Raw].load
 
+    logging.debug(f"Parsing packet: {packet.summary()}")
+    if load:
+        logging.debug(f"Raw payload data: {load.hex()}")
     # Discord Ethernet packets with just a raw load. These are usually network
     # controls like flow control
     if (packet.haslayer(Ether)
             and packet.haslayer(Raw)
             and not packet.haslayer(IP)
             and not packet.haslayer(IPv6)):
+        logging.debug("Discarding non-IP Ethernet packet with raw load.")
         return
 
     # UDP
     if packet.haslayer(UDP) and packet.haslayer(IP):
         src_ip_port: str = str(packet[IP].src) + ":" + str(packet[UDP].sport)
         dst_ip_port: str = str(packet[IP].dst) + ':' + str(packet[UDP].dport)
+        logging.debug(f"Processing UDP packet from {src_ip_port} to {dst_ip_port}")
 
         # SNMP Community Strings
         if packet.haslayer(SNMP):
+            logging.debug(f"SNMP layer found in UDP packet. Passing to SNMP parser.")
             parse_snmp(src_ip_port, dst_ip_port, packet[SNMP])
             return
 
         if packet[UDP].dport == 88 or packet[UDP].sport == 88:
+            logging.debug(f"Potential Kerberos traffic detected on port 88/UDP.")
             kerb_data = bytes(packet[UDP].payload)
             if kerb_data:
+                logging.debug(f"UDP payload with length {len(kerb_data)} bytes found. Passing to Kerberos parser.")
                 parse_kerberos(src_ip_port, dst_ip_port, kerb_data)
+            else:
+                logging.debug("Kerberos packet detected, but no UDP payload found.")
             return
-
-    logging.debug(load)
+        
+    logging.debug("Packet did not match any parsing criteria.")
