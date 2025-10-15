@@ -23,7 +23,7 @@ from scapy.all import PcapReader, sniff, conf
 from os import geteuid # type: ignore
 
 from logging_config import setup_logging
-from utils import interface_finder, bfp_filter
+from utils import interface_finder, bpf_filter
 from parse_packet import parse_packet
 
 APP_NAME = "netcreds-ng"
@@ -103,7 +103,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             iface=conf.iface, # type: ignore
             prn=parse_packet, 
             store=0, 
-            filter=bfp_filter(filter_ips)
+            filter=bpf_filter(filter_ips)
         )
 
     return SUCCESS

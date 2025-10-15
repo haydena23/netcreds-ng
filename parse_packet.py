@@ -93,7 +93,8 @@ def parse_packet(packet: Ether) -> None:
     logging.debug(f"Parsing packet: {packet.summary()}")
     if load:
         logging.debug(f"Raw payload data: {load.hex()}")
-    # Discord Ethernet packets with just a raw load. These are usually network
+        
+    # Discard Ethernet packets with just a raw load. These are usually network
     # controls like flow control
     if (packet.haslayer(Ether)
             and packet.haslayer(Raw)

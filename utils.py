@@ -18,7 +18,7 @@ def interface_finder() -> Optional[str]:
             return None
     return None
 
-def bfp_filter(ips: List[str]) -> Optional[str]:
+def bpf_filter(ips: List[str]) -> Optional[str]:
     """Build a BPF filter string to exclude specified IPs."""
     if not ips:
         return None
