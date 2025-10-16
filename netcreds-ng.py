@@ -29,7 +29,7 @@ from utils import interface_finder, bpf_filter
 from parse_packet import parse_packet
 
 APP_NAME = "netcreds-ng"
-__version__ = "1.0.0"
+__version__ = "1.1.0"
 
 REPO_PATH = Path(__file__).parent
 
