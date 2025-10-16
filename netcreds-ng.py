@@ -17,7 +17,9 @@ from __future__ import annotations
 
 import argparse
 import logging
+import subprocess
 from typing import Optional, Sequence, List
+from pathlib import Path
 
 from scapy.all import PcapReader, sniff, conf
 from os import geteuid # type: ignore
@@ -29,14 +31,27 @@ from parse_packet import parse_packet
 APP_NAME = "netcreds-ng"
 __version__ = "1.0.0"
 
+REPO_PATH = Path(__file__).parent
+
 SUCCESS = 0
 ERROR = 1
 INTERRUPT = 130
 ROOT = 0
 
 def update() -> None:
-    """Check for the latest version. Update if requested."""
-    logging.error(f"Update not supported yet")
+    """Update the tool from GitHub if possible."""
+    logging.info("Checking for updates...")
+    git_dir = REPO_PATH / ".git"
+    if not git_dir.exists():
+        logging.error("Cannot update: this installation is not a git repository.")
+        return
+
+    try:
+        subprocess.run(["git", "fetch", "--all"], cwd=REPO_PATH, check=True, stdout=subprocess.PIPE)
+        subprocess.run(["git", "pull"], cwd=REPO_PATH, check=True)
+        logging.info(f"Updated {APP_NAME} to version {__version__}")
+    except subprocess.CalledProcessError as e:
+        logging.error(f"Failed to update: {e}")
 
 def main(argv: Optional[Sequence[str]] = None) -> int:
     parser = argparse.ArgumentParser(
@@ -45,7 +60,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 
     parser.add_argument("-i", "--interface", help="Choose an interface")
     parser.add_argument("-p", "--pcap", help="Parse info from a pcap file")
-    parser.add_argument("-u", "--update", help="Update to the latest version of netcreds-ng")
+    parser.add_argument("-u", "--update", help="Update to the latest version of netcreds-ng", action="store_true")
+    parser.add_argument("--version", help="Display current version", action="store_true")
 
     filter_group = parser.add_mutually_exclusive_group()
     filter_group.add_argument("-f", "--filter", help="Do not sniff packets from host1,host2,...", type=str)
@@ -59,10 +75,14 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 
     setup_logging(args.verbose, args.quiet)
 
+    if args.version:
+        logging.info(f"{APP_NAME} version: {__version__}")
+        return SUCCESS
+    
     if args.update:
         try:
             update()
-            return ERROR
+            return SUCCESS
         except Exception as e:
             logging.error(f"[!] Error updating netcreds-ng: {e}")
             return ERROR
