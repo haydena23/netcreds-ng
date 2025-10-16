@@ -29,7 +29,7 @@ from utils import interface_finder, bpf_filter
 from parse_packet import parse_packet
 
 APP_NAME = "netcreds-ng"
-__version__ = "1.1.0"
+__version__ = "1.1.1"
 
 REPO_PATH = Path(__file__).parent
 
@@ -49,7 +49,7 @@ def update() -> None:
     try:
         subprocess.run(["git", "fetch", "--all"], cwd=REPO_PATH, check=True, stdout=subprocess.PIPE)
         subprocess.run(["git", "pull"], cwd=REPO_PATH, check=True)
-        logging.info(f"Updated {APP_NAME} to version {__version__}")
+        logging.info(f"Successfully updated {APP_NAME}.")
     except subprocess.CalledProcessError as e:
         logging.error(f"Failed to update: {e}")
 
