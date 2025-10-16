@@ -49,7 +49,6 @@ def update() -> None:
     try:
         subprocess.run(["git", "fetch", "--all"], cwd=REPO_PATH, check=True, stdout=subprocess.PIPE)
         subprocess.run(["git", "pull"], cwd=REPO_PATH, check=True)
-        logging.info(f"Successfully updated {APP_NAME}.")
     except subprocess.CalledProcessError as e:
         logging.error(f"Failed to update: {e}")
 
@@ -76,7 +75,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     setup_logging(args.verbose, args.quiet)
 
     if args.version:
-        logging.info(f"{APP_NAME} version: {__version__}")
+        logging.info(f"{APP_NAME} Installed version: {__version__}")
         return SUCCESS
     
     if args.update:
