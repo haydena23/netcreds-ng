@@ -27,7 +27,7 @@ class LoggingFormatter(logging.Formatter):
 def setup_logging(is_verbose: bool, is_quiet: bool) -> None:
     """Set up the logging configuration."""
     fmt_debug = "[%(asctime)s] [DEBUG] %(filename)s:%(lineno)d: %(message)s"
-    fmt_info = "[%(levelname)s] %(message)s"
+    fmt_info = "[%(asctime)s] [DEBUG] %(filename)s:%(lineno)d: %(message)s" if is_verbose else "[%(levelname)s] %(message)s"
 
     handler = logging.StreamHandler()
     handler.setFormatter(LoggingFormatter(fmt_debug, fmt_info))

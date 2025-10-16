@@ -14,12 +14,25 @@ from impacket.krb5.asn1 import AS_REQ
 from impacket.krb5 import constants
 from pyasn1.codec.der import decoder
 
+SNMP_VERSION_MAP = {0: "v1", 1: "v2c", 2: "v2", 3: "v3"}
 
 def parse_snmp(src_ip_port: str, dst_ip_port: str, snmp_packet: SNMP) -> None:
-    """Parses SNMP packets."""
-    # Placeholder for SNMP parsing logic
-    logging.debug(f"SNMP packet details: Version={snmp_packet.version.val}, Community='{snmp_packet.community.val}'")
-    logging.info(f"SNMP packet from {src_ip_port} to {dst_ip_port}")
+    """Parses SNMP packets to extract the Community String"""
+    version = snmp_packet.version.val
+    community_bytes = snmp_packet.community.val
+
+    if version == 3:
+        logging.debug("SNMPv3 packet received: no community string.")
+        return
+    
+    try:
+        community_string = community_bytes.decode("ascii")
+    except(AttributeError, UnicodeDecodeError):
+        community_string = str(community_bytes)
+        
+    version_string = SNMP_VERSION_MAP.get(version, f"Unknown({version})")
+    logging.info(f"SNMP{version_string} packet from {src_ip_port} to {dst_ip_port}: Community String = '{community_string}'")
+    return
 
 def parse_kerberos(src_ip_port: str, dst_ip_port: str, kerb_data: bytes) -> None:
     """
@@ -86,14 +99,14 @@ def parse_kerberos(src_ip_port: str, dst_ip_port: str, kerb_data: bytes) -> None
 def parse_packet(packet: Ether) -> None:
     """Parse a network packet."""
     load: Optional[ByteString] = None
-    logging.debug("-" * 25 + " New Packet Captured " + "-" * 25)
+    logging.info("-" * 25 + " New Packet Captured " + "-" * 25)
     if packet.haslayer(Raw):
         load = packet[Raw].load
 
     logging.debug(f"Parsing packet: {packet.summary()}")
     if load:
         logging.debug(f"Raw payload data: {load.hex()}")
-        
+
     # Discard Ethernet packets with just a raw load. These are usually network
     # controls like flow control
     if (packet.haslayer(Ether)
@@ -125,4 +138,4 @@ def parse_packet(packet: Ether) -> None:
                 logging.debug("Kerberos packet detected, but no UDP payload found.")
             return
         
-    logging.debug("Packet did not match any parsing criteria.")
+    logging.info("Packet did not match any parsing criteria.")
