@@ -1,18 +1,5 @@
 #!/usr/bin/python
 
-"""
-To-Do:
-* PCAP-NG Parsing
-* Update function
-* Multiple OS support
-* Packet Parsing
-* Rich for better dashboard
-* Parse SNMP & Kerberos UDP/TCP
-* TCP
-* Telnet
-* FTP
-"""
-
 from __future__ import annotations
 
 import argparse
@@ -22,11 +9,14 @@ from typing import Optional, Sequence, List
 from pathlib import Path
 
 from scapy.all import PcapReader, sniff, conf
-from os import geteuid # type: ignore
+import platform
+import os
 
 from logging_config import setup_logging
-from utils import interface_finder, bpf_filter
+import utils
 from parse_packet import parse_packet
+
+from src.netcreds_ng.utils import bpf
 
 APP_NAME = "netcreds-ng"
 __version__ = "1.1.1"
@@ -37,6 +27,17 @@ SUCCESS = 0
 ERROR = 1
 INTERRUPT = 130
 ROOT = 0
+
+def is_admin() -> bool:
+    """Check if the script is running with administrative privileges."""
+    try:
+        if platform.system() == "Windows":
+            import ctypes
+            return ctypes.windll.shell32.IsUserAnAdmin() != 0
+        else:
+            return os.geteuid() == 0 # type: ignore
+    except Exception:
+        return False
 
 def update() -> None:
     """Update the tool from GitHub if possible."""
@@ -57,8 +58,10 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         prog=APP_NAME
     )
 
-    parser.add_argument("-i", "--interface", help="Choose an interface")
-    parser.add_argument("-p", "--pcap", help="Parse info from a pcap file")
+    source_group = parser.add_mutually_exclusive_group()
+    source_group.add_argument("-i", "--interface", help="Choose an interface for live capture")
+    source_group.add_argument("-p", "--pcap", help="Parse credentials from a PCAP file")
+
     parser.add_argument("-u", "--update", help="Update to the latest version of netcreds-ng", action="store_true")
     parser.add_argument("--version", help="Display current version", action="store_true")
 
@@ -97,13 +100,22 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             logging.error(f"Scapy is required to examine PCAP files: {e}")
             return ERROR
     else:       
-        if geteuid() is not ROOT:
-           logging.error(f"Please run as root. Current UID: {geteuid()}")
+        if not is_admin():
+           logging.error(f"Please run as root/admin.")
            return ERROR
-        if args.interface:
-            conf.iface = args.interface
-        else:
-            conf.iface = interface_finder()
+        
+        internal_interface_name = args.interface
+        friendly_interface_name = args.interface
+
+        if not internal_interface_name:
+            found_interfaces = utils.interface_finder()
+            if found_interfaces:
+                internal_interface_name, friendly_interface_name = found_interfaces
+            else:
+                return ERROR
+        if friendly_interface_name is None:
+            friendly_interface_name = utils.get_friendly_name(internal_interface_name)
+
 
         logging.info(f"Using Interface: {conf.iface}") # type: ignore
 
@@ -122,7 +134,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             iface=conf.iface, # type: ignore
             prn=parse_packet, 
             store=0, 
-            filter=bpf_filter(filter_ips)
+            filter=bpf.build_filter(filter_ips)
         )
 
     return SUCCESS
