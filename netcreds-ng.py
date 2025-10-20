@@ -19,7 +19,7 @@ from parse_packet import parse_packet
 from src.netcreds_ng.utils import bpf
 
 APP_NAME = "netcreds-ng"
-__version__ = "1.1.2"
+__version__ = "1.1.3"
 
 REPO_PATH = Path(__file__).parent
 
