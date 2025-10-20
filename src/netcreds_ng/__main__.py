@@ -1,5 +1,3 @@
-#!/usr/bin/python
-
 from __future__ import annotations
 
 import argparse
@@ -12,14 +10,14 @@ import platform
 import os
 import sys
 
-from logging_config import setup_logging
-import src.netcreds_ng.utils.network as network
-from parse_packet import parse_packet
+from netcreds_ng.logging_config import setup_logging
+import netcreds_ng.utils.network as network
+from netcreds_ng.parse_packet import parse_packet
 
-from src.netcreds_ng.utils import bpf
+from netcreds_ng.utils import bpf
 
 APP_NAME = "netcreds-ng"
-__version__ = "1.1.4"
+__version__ = "1.1.5"
 
 REPO_PATH = Path(__file__).parent
 

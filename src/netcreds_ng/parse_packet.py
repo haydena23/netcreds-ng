@@ -9,10 +9,10 @@ from scapy.layers.inet import IP, UDP, TCP
 from scapy.layers.inet6 import IPv6
 from scapy.layers.snmp import SNMP
 
-from parsers.parse_kerberos import parse_kerberos
-from parsers.parse_snmp import parse_snmp
+from netcreds_ng.parsers.parse_kerberos import parse_kerberos
+from netcreds_ng.parsers.parse_snmp import parse_snmp
 
-import src.netcreds_ng.utils.tcp_reassembly as tcp_reassembly
+import netcreds_ng.utils.tcp_reassembly as tcp_reassembly
 
 MAX_PROCESS_LENGTH = 1500
 

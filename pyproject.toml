@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "netcreds-ng"
+version = "1.1.5"
+description = "A modern, robust network credential sniffer."
+authors = [
+  { name = "Tony Hayden", email = "tonesterpdx@gmail.com" },
+]
+readme = "README.md"
+requires-python = ">=3.8"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Operating System :: OS Independent",
+]
+dependencies = [
+    "scapy",
+    "impacket",
+    "rich",
+    "pyasn1",
+    "netifaces",
+    "psutil"
+]
+
+[project.scripts]
+netcreds-ng = "netcreds_ng.__main__:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
