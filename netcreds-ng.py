@@ -4,13 +4,13 @@ from __future__ import annotations
 
 import argparse
 import logging
-import subprocess
 from typing import Optional, Sequence, List
 from pathlib import Path
 
 from scapy.all import PcapReader, sniff, conf
 import platform
 import os
+import sys
 
 from logging_config import setup_logging
 import utils
@@ -19,7 +19,7 @@ from parse_packet import parse_packet
 from src.netcreds_ng.utils import bpf
 
 APP_NAME = "netcreds-ng"
-__version__ = "1.1.1"
+__version__ = "1.1.2"
 
 REPO_PATH = Path(__file__).parent
 
@@ -38,20 +38,6 @@ def is_admin() -> bool:
             return os.geteuid() == 0 # type: ignore
     except Exception:
         return False
-
-def update() -> None:
-    """Update the tool from GitHub if possible."""
-    logging.info("Checking for updates...")
-    git_dir = REPO_PATH / ".git"
-    if not git_dir.exists():
-        logging.error("Cannot update: this installation is not a git repository.")
-        return
-
-    try:
-        subprocess.run(["git", "fetch", "--all"], cwd=REPO_PATH, check=True, stdout=subprocess.PIPE)
-        subprocess.run(["git", "pull"], cwd=REPO_PATH, check=True)
-    except subprocess.CalledProcessError as e:
-        logging.error(f"Failed to update: {e}")
 
 def main(argv: Optional[Sequence[str]] = None) -> int:
     parser = argparse.ArgumentParser(
@@ -83,8 +69,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     
     if args.update:
         try:
-            update()
-            return SUCCESS
+            logging.error(f"[!] Netcreds updating not available. It is being reworked")
+            return ERROR
         except Exception as e:
             logging.error(f"[!] Error updating netcreds-ng: {e}")
             return ERROR
@@ -141,8 +127,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 
 if __name__ == "__main__":
     try:
-        raise SystemExit(main())
+        sys.exit(main())
     except KeyboardInterrupt:
-        raise SystemExit(INTERRUPT)
-    except Exception:
-        raise SystemExit(ERROR)
+        print("\nInterrupted by user.")
+        sys.exit(INTERRUPT)
