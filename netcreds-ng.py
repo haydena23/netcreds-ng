@@ -13,13 +13,13 @@ import os
 import sys
 
 from logging_config import setup_logging
-import utils
+import src.netcreds_ng.utils.network as network
 from parse_packet import parse_packet
 
 from src.netcreds_ng.utils import bpf
 
 APP_NAME = "netcreds-ng"
-__version__ = "1.1.3"
+__version__ = "1.1.4"
 
 REPO_PATH = Path(__file__).parent
 
@@ -94,13 +94,13 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         friendly_interface_name = args.interface
 
         if not internal_interface_name:
-            found_interfaces = utils.interface_finder()
+            found_interfaces = network.interface_finder()
             if found_interfaces:
                 internal_interface_name, friendly_interface_name = found_interfaces
             else:
                 return ERROR
         if friendly_interface_name is None:
-            friendly_interface_name = utils.get_friendly_name(internal_interface_name)
+            friendly_interface_name = network.get_friendly_name(internal_interface_name)
 
 
         logging.info(f"Using Interface: {conf.iface}") # type: ignore
