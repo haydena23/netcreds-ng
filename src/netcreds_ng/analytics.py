@@ -1,19 +1,19 @@
 from __future__ import annotations
 import time
+import configparser
 from collections import Counter, deque
 from dataclasses import dataclass, field
 from typing import Dict, Set, Any
 
 from netcreds_ng import state
 
+config = configparser.ConfigParser()
+config.read("analytics.ini")
+
 # --- Constants for Analysis ---
 CLEARTEXT_PROTOCOLS = frozenset(['FTP', 'Telnet', 'HTTP', 'Mail', 'IRC', 'SNMP'])
 
-# EXAMPLE WEAK PASSWORDS. NEED BETTER WAY TO DO THIS
-WEAK_PASSWORDS = frozenset([
-    'password', '123456', '12345678', 'qwerty', '12345', '123456789',
-    'admin', 'root', 'pass', 'Password123', 'Password!', 'summer2025'
-])
+WEAK_PASSWORDS = frozenset([config["passwords"]["weak"]])
 
 @dataclass
 class HostProfile:
