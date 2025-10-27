@@ -1,11 +1,11 @@
 from __future__ import annotations
 import time
-from .analytics_configs import *
 from collections import Counter, deque
 from dataclasses import dataclass, field
 from typing import Dict, Set, Any
 
 from netcreds_ng import state
+from netcreds_ng.analytics_configs import GetClearTextProtocols, GetWeakPasswords
 
 # --- Constants for Analysis ---
 CLEARTEXT_PROTOCOLS = GetClearTextProtocols()
