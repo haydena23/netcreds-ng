@@ -5,12 +5,12 @@ from dataclasses import dataclass, field
 from typing import Dict, Set, Any
 
 from netcreds_ng import state
-from netcreds_ng.analytics_configs import GetClearTextProtocols, GetWeakPasswords
+from netcreds_ng import analytics_configs
 
 # --- Constants for Analysis ---
-CLEARTEXT_PROTOCOLS = GetClearTextProtocols()
+CLEARTEXT_PROTOCOLS = analytics_configs.GetClearTextProtocols()
 
-WEAK_PASSWORDS = GetWeakPasswords()
+WEAK_PASSWORDS = analytics_configs.GetWeakPasswords()
 
 @dataclass
 class HostProfile:
