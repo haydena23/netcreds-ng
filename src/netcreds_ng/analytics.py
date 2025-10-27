@@ -1,19 +1,16 @@
 from __future__ import annotations
 import time
-import configparser
+from .analytics_configs import *
 from collections import Counter, deque
 from dataclasses import dataclass, field
 from typing import Dict, Set, Any
 
 from netcreds_ng import state
 
-config = configparser.ConfigParser()
-config.read("analytics.ini")
-
 # --- Constants for Analysis ---
-CLEARTEXT_PROTOCOLS = frozenset(['FTP', 'Telnet', 'HTTP', 'Mail', 'IRC', 'SNMP'])
+CLEARTEXT_PROTOCOLS = GetClearTextProtocols()
 
-WEAK_PASSWORDS = frozenset([config["passwords"]["weak"]])
+WEAK_PASSWORDS = GetWeakPasswords()
 
 @dataclass
 class HostProfile:
@@ -109,3 +106,4 @@ class AnalyticsTracker:
     @property
     def tracked_conversations(self) -> int:
         return len(state.telnet_prompts) + len(state.mail_auths) + len(state.ntlm_challenges)
+    
