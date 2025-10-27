@@ -17,6 +17,9 @@ PARSER_INIT_EVENT = Event()
 DATA_QUEUE: Optional[Queue[Dict[str, Any]]] = None
 loaded_parsers: Optional[List[Any]] = None
 
+OUTPUT_WRITER: Optional[BaseWriter] = None
+ANALYSIS_TRACKER: Optional[AnalyticsTracker] = None
+
 def initialize_parsers_threaded():
     """
     Target function for the background loader thread.
@@ -38,12 +41,12 @@ def set_data_queue(queue: Queue[Dict[str, Any]]):
 def set_analysis_tracker(tracker: AnalyticsTracker):
     """Sets the tracker for communicating analytics to the UI."""
     global ANALYSIS_TRACKER
-    ANALYSIS_TRACKER = tracker
+    ANALYSIS_TRACKER = tracker # type: ignore
 
 def set_output_writer(writer: BaseWriter):
     """Sets the file handle for writing credentials."""
     global OUTPUT_WRITER
-    OUTPUT_WRITER = writer
+    OUTPUT_WRITER = writer # type: ignore
 
 def handle_result(result: Optional[Dict[str, Any]]):
     """
