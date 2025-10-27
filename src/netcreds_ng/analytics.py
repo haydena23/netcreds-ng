@@ -5,15 +5,12 @@ from dataclasses import dataclass, field
 from typing import Dict, Set, Any
 
 from netcreds_ng import state
+from netcreds_ng import analytics_configs
 
 # --- Constants for Analysis ---
-CLEARTEXT_PROTOCOLS = frozenset(['FTP', 'Telnet', 'HTTP', 'Mail', 'IRC', 'SNMP'])
+CLEARTEXT_PROTOCOLS = analytics_configs.GetClearTextProtocols()
 
-# EXAMPLE WEAK PASSWORDS. NEED BETTER WAY TO DO THIS
-WEAK_PASSWORDS = frozenset([
-    'password', '123456', '12345678', 'qwerty', '12345', '123456789',
-    'admin', 'root', 'pass', 'Password123', 'Password!', 'summer2025'
-])
+WEAK_PASSWORDS = analytics_configs.GetWeakPasswords()
 
 @dataclass
 class HostProfile:
@@ -109,3 +106,4 @@ class AnalyticsTracker:
     @property
     def tracked_conversations(self) -> int:
         return len(state.telnet_prompts) + len(state.mail_auths) + len(state.ntlm_challenges)
+    
