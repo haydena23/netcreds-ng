@@ -1,10 +1,12 @@
 from __future__ import annotations
-from collections import OrderedDict
-from typing import List, Any
+from collections import OrderedDict, deque
+from typing import List, Any, Tuple
 
 telnet_prompts: OrderedDict[str, str] = OrderedDict()
 mail_auths: OrderedDict[str, List[int]] = OrderedDict()
-ntlm_challenges: OrderedDict[int, str] = OrderedDict()
+ntlm_challenges: OrderedDict[Any, Any] = OrderedDict()
+
+found_credentials_cache: deque[Tuple[Any, ...]] = deque(maxlen=500)
 
 MAX_STATE_ENTRIES = 100
 

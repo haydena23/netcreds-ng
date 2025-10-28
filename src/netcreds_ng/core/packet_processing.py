@@ -11,6 +11,7 @@ from netcreds_ng.core.parser_manager import initialize_parsers
 from netcreds_ng.core.dispatcher import dispatch_packet
 from netcreds_ng.analytics import AnalyticsTracker
 from netcreds_ng.output_writer import BaseWriter
+from netcreds_ng import state
 
 # --- THREADING & MODULE GLOBALS ---
 PARSER_INIT_EVENT = Event()
@@ -54,7 +55,22 @@ def handle_result(result: Optional[Dict[str, Any]]):
     """
     if not result:
         return
-        
+
+    credential_tuple = (
+        result.get('protocol'),
+        result.get('source'),
+        result.get('destination'),
+        result.get('type'),
+        result.get('credential'),
+    )
+
+    # If credential already processed, ignore, else add to cache and process
+    if credential_tuple in state.found_credentials_cache:
+        logging.debug(f"Duplicate credential found and ignored: {credential_tuple}")
+        return
+    
+    state.found_credentials_cache.append(credential_tuple)
+
     if ANALYSIS_TRACKER:
         ANALYSIS_TRACKER.add_credential(result)
 
