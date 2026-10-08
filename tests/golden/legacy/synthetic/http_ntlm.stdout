@@ -1,0 +1,3 @@
+[192.0.2.10] GET intranet.example/intranet
+[192.0.2.10] GET intranet.example/intranet
+[192.0.2.10:50011 > 198.51.100.20:80] [93mNETNTLMv2: ntlmuser::FAKEDOM:1111111111111111:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb[0m

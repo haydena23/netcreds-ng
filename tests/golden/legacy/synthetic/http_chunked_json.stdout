@@ -1,0 +1,16 @@
+[192.0.2.10] POST api.exam/api/login
+[192.0.2.10] POST load: 
+[192.0.2.10] POST api.example.com/api/login
+[192.0.2.10] POST load: 
+[192.0.2.10] POST api.example.com/api/login
+[192.0.2.10] POST load: 49
+{"use
+[192.0.2.10] POST api.example.com/api/login
+[192.0.2.10] POST load: 49
+{"user": {"email": "jsonuser@example.com", "p
+[192.0.2.10] POST api.example.com/api/login
+[192.0.2.10] POST load: 49
+{"user": {"email": "jsonuser@example.com", "password": "Json-Fake-Pass"}}
+0
+
+

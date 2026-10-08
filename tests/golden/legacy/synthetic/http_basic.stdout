@@ -1,0 +1,2 @@
+[192.0.2.10] GET www.example.com/admin
+[192.0.2.10:50008 > 198.51.100.20:80] [93mBasic Authentication: basicuser:Basic-Fake-Pass[0m

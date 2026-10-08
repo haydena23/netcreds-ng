@@ -1,0 +1,7 @@
+include README.md CHANGELOG.md LICENSE
+graft docs
+graft tools
+graft tests
+graft examples
+prune examples/*/build
+global-exclude *.py[cod] __pycache__/*

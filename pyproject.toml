@@ -1,32 +1,76 @@
 [build-system]
-requires = ["setuptools>=61.0"]
+requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "netcreds-ng"
-version = "1.2.0"
-description = "A modern, robust network credential sniffer."
-authors = [
-  { name = "Tony Hayden", email = "tonesterpdx@gmail.com" },
-]
+dynamic = ["version"]
+description = "Next-generation network credential exposure auditing: find cleartext credentials and weak authentication in pcaps or live traffic."
 readme = "README.md"
-requires-python = ">=3.8"
+license-files = ["LICENSE"]
+authors = [{ name = "Tony Hayden", email = "70609182+haydena23@users.noreply.github.com" }]
+requires-python = ">=3.11"
 classifiers = [
     "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
     "Operating System :: OS Independent",
+    "Environment :: Console",
+    "Topic :: Security",
+    "Topic :: System :: Networking :: Monitoring",
 ]
+# Pure-Python or widely-wheeled dependencies only: no compilers, no patched installs.
 dependencies = [
-    "scapy",
-    "impacket",
-    "rich",
-    "pyasn1",
-    "netifaces",
-    "psutil",
-    "pywin32; sys_platform == 'win32'"
+    "rich>=13.7,<16",
+    "textual>=0.80,<9",
+    "scapy>=2.5,<2.9",   # used only for live capture; capture files are read natively
+    "psutil>=5.9,<8",    # interface discovery
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8,<10",
+    "hypothesis>=6.100,<7",
+    "ruff>=0.6,<1",
+    "mypy>=1.10,<3",
 ]
 
 [project.scripts]
-netcreds-ng = "netcreds_ng.__main__:main"
+netcreds-ng = "netcreds_ng.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/haydena23/netcreds-ng"
+
+[tool.setuptools.dynamic]
+version = { attr = "netcreds_ng.__version__" }
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+netcreds_ng = ["data/*.txt", "py.typed"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+src = ["src", "tests"]
+extend-exclude = ["src/netcreds_ng/legacy.py", "tools/py2_oracle.py"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "BLE", "RUF"]
+# UP042: str+Enum mixins are kept deliberately; UP031: %-formatting is used for byte-oriented code.
+ignore = ["E501", "RUF012", "RUF001", "RUF003", "B904", "UP042", "UP031"]
+
+[tool.mypy]
+python_version = "3.11"
+packages = ["netcreds_ng"]
+mypy_path = "src"
+ignore_missing_imports = true
+warn_unused_ignores = false

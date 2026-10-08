@@ -1,0 +1,58 @@
+{
+  "test/FTP/ftp.pcap": {
+    "exit": 0,
+    "lines": 2,
+    "log_sha256": "6872f4899bd780046513e64279668387521ed5122eceafa0d48d78ab3e5a554f",
+    "raw_tcp_matches_default_scapy": true,
+    "stdout_sha256": "13f96a3778cd7f40894a1b89615015b3ac1d331d277dc6ef0c910a3c57de032e"
+  },
+  "test/Krb5/krb-816.cap": {
+    "exit": 0,
+    "lines": 3,
+    "log_sha256": "5d967a3495f11539f1704f9b1ac0e703238c57c3a83d4499dd6cc92d2aadaff1",
+    "raw_tcp_matches_default_scapy": true,
+    "stdout_sha256": "fde2934f2f220f95e3e4f4b0bfa75b2c244a9282e63aa525ff5e746b7d37a16c"
+  },
+  "test/SNMP/b6300a.cap": {
+    "exit": 0,
+    "lines": 1,
+    "log_sha256": "cca189f771cb7538567f8361bcd02319008cd54d2d5c4ee1e61296e1a84bbc5b",
+    "raw_tcp_matches_default_scapy": true,
+    "stdout_sha256": "d8007337f0b5f6b74512f46861c893cddf35fc6e7bada39012760983501ba512"
+  },
+  "test/SNMP/snmp_usm.pcap": {
+    "exit": 0,
+    "lines": 0,
+    "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "raw_tcp_matches_default_scapy": true,
+    "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "test/TCP/200722_tcp_anon.pcapng": {
+    "exit": 0,
+    "lines": 0,
+    "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "raw_tcp_matches_default_scapy": true,
+    "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "test/Telnet/telnet-client-server.pcapng": {
+    "exit": 0,
+    "lines": 1,
+    "log_sha256": "286195a0152c9cde0616f436e1a0265fda75cde9e6a66b3f2d41a33f33430a99",
+    "raw_tcp_matches_default_scapy": true,
+    "stdout_sha256": "2d5d9348ad4f96a9e36bc88883b77f25a7195e0320f9e77963faaa4cc8e4f98a"
+  },
+  "test/Telnet/telnet-raw.pcap": {
+    "exit": 0,
+    "lines": 2,
+    "log_sha256": "fe7bf0446783b5304770d1bd2dbbfea15049b8ee5d99154d461d17154ee146c8",
+    "raw_tcp_matches_default_scapy": true,
+    "stdout_sha256": "83b995162b39995660a4c1beba9f5642832f54390103619b9596263764191cd3"
+  },
+  "test/Telnet/telnet_capture.pcap": {
+    "exit": 0,
+    "lines": 6,
+    "log_sha256": "eb066c737319d475f0d640a36b064d5ef534a0c84c9118dee200dc04662e7d46",
+    "raw_tcp_matches_default_scapy": true,
+    "stdout_sha256": "53dbf6c2572c665ef0c948048df616253a648b0fceea7a2ec08db52e9420235a"
+  }
+}

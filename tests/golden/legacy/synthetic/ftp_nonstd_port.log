@@ -1,0 +1,4 @@
+INFO:root:[192.0.2.10:50001 > 198.51.100.20:2121] FTP User: nonstd
+INFO:root:[192.0.2.10:50001 > 198.51.100.20:2121] Nonstandard FTP port, confirm the service that is running on it
+INFO:root:[192.0.2.10:50001 > 198.51.100.20:2121] FTP Pass: Nonstd-Pass-9
+INFO:root:[198.51.100.20:2121 > 192.0.2.10:50001] Authentication: incorrect.

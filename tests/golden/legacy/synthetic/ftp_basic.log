@@ -1,0 +1,3 @@
+INFO:root:[192.0.2.10:50000 > 198.51.100.20:21] FTP User: fakeuser
+INFO:root:[192.0.2.10:50000 > 198.51.100.20:21] FTP Pass: FakePass-123
+INFO:root:[198.51.100.20:21 > 192.0.2.10:50000] Authentication: successful.

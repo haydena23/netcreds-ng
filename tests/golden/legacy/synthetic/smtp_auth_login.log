@@ -1,0 +1,3 @@
+INFO:root:[192.0.2.10:50004 > 198.51.100.20:587] Mail authentication: smtpuser@example.com
+INFO:root:[192.0.2.10:50004 > 198.51.100.20:587] Mail authentication: Smtp-Fake-Pass
+INFO:root:[192.0.2.10:50004 > 198.51.100.20:587] Authentication successful

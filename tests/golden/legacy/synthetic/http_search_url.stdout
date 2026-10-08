@@ -1,0 +1,2 @@
+[192.0.2.10] GET search.example.com/search?q=fake+search+terms
+[192.0.2.10:50010 > 198.51.100.20:80] [93mSearched search.example.com: fake search terms[0m

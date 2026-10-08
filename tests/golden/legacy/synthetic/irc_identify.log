@@ -1,0 +1,3 @@
+INFO:root:[192.0.2.10:50003 > 198.51.100.20:6667] FTP Pass: fake-server-pass
+INFO:root:[192.0.2.10:50003 > 198.51.100.20:6667] Nonstandard FTP port, confirm the service that is running on it
+INFO:root:[192.0.2.10:50003 > 198.51.100.20:6667] IRC pass: fakenick irc-fake-pass

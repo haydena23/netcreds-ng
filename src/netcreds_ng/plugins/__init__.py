@@ -1,0 +1,1 @@
+"""netcreds-ng plugins package."""

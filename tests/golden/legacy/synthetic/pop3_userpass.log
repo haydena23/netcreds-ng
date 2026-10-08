@@ -1,0 +1,3 @@
+INFO:root:[192.0.2.10:50006 > 198.51.100.20:110] FTP User: popuser
+INFO:root:[192.0.2.10:50006 > 198.51.100.20:110] Nonstandard FTP port, confirm the service that is running on it
+INFO:root:[192.0.2.10:50006 > 198.51.100.20:110] FTP Pass: Pop-Fake-Pass

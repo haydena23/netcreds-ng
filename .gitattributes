@@ -1,0 +1,6 @@
+* text=auto eol=lf
+*.pcap binary
+*.pcapng binary
+*.cap binary
+*.sqlite3 binary
+tests/golden/** -text

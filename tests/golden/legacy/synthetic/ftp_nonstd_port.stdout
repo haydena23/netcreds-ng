@@ -1,0 +1,4 @@
+[192.0.2.10:50001 > 198.51.100.20:2121] [93mFTP User: nonstd[0m
+[192.0.2.10:50001 > 198.51.100.20:2121] [93mNonstandard FTP port, confirm the service that is running on it[0m
+[192.0.2.10:50001 > 198.51.100.20:2121] [93mFTP Pass: Nonstd-Pass-9[0m
+[198.51.100.20:2121 > 192.0.2.10:50001] [93mAuthentication: incorrect.[0m

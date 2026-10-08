@@ -1,0 +1,17 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "netcreds-ng-example-plugin"
+version = "1.0.0"
+description = "Example netcreds-ng plugin: BSD rexec cleartext logins"
+requires-python = ">=3.11"
+dependencies = ["netcreds-ng>=2.0.0.dev0"]
+
+# This is what makes netcreds-ng discover the plugin after `pip install`.
+[project.entry-points."netcreds_ng.plugins"]
+rexec = "netcreds_example:RexecPlugin"
+
+[tool.setuptools.packages.find]
+where = ["src"]

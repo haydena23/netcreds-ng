@@ -1,0 +1,2 @@
+INFO:root:[192.0.2.10:50009 > 198.51.100.20:8080] HTTP username: member=1
+INFO:root:[192.0.2.10:50009 > 198.51.100.20:8080] HTTP password: password=Form-Fake-Pass

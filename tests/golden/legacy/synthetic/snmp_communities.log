@@ -1,0 +1,2 @@
+INFO:root:[192.0.2.10:50100 > 198.51.100.20:161] SNMPv1 community string: fake-community
+INFO:root:[192.0.2.10:50101 > 198.51.100.20:161] SNMPv0 community string: public
