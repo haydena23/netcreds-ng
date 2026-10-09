@@ -4,6 +4,25 @@
 
 Complete rewrite as a next-generation, defensive credential-exposure auditing tool. The original net-creds behaviour is the parity floor, verified by tests against output recorded from the original Python 2 tool.
 
+### Dashboard v2 (M30)
+
+- **Finding inspector.** ++enter++ on a finding opens it full-screen:
+    - *Why this matters*: the risk level, the kind, and each tag explained in plain language, with who set it (plugin, analytics, detection or engine). Weak passwords name the rule that matched; alerts state their rule, thresholds and attempts.
+    - *Context*: the service's inventory, the client and server exposure scores, and the account's other services.
+    - *Related findings*: an alert's attempts, the alert a login fed, the same connection, the same secret (by fingerprint) and the same account elsewhere. ++enter++ opens one and ++escape++ goes back.
+- The explanations live in a new module, `netcreds_ng.explain`, which covers every tag the built-in code sets; a test fails when a tag has no entry.
+- **Analytics tabs**: Findings, Overview (risk totals, a timeline per risk, top exposure reasons, protocol and kind breakdowns, capture health), Alerts, Hosts, Services, Accounts, Bookmarks and Health. Number keys switch tabs. ++enter++ on a host, service or account shows its findings, and ++escape++ returns to the tab.
+- **Live view**: `t` follows new findings (on by default for live capture and `--attach`). Space freezes the table while analysis continues, and the status bar shows `FROZEN +N new`.
+- **Bookmarks and notes** (`*`, `n`), with a Bookmarks tab. JSONL export (`e`) adds `bookmarked` and `note` fields.
+- The detail pane starts with a one-line *why*. `?` lists every key, and the footer shows only the most used ones.
+- **`--attach DB`** opens the dashboard on a `--sqlite` database and follows it while another netcreds-ng run writes to it. You can run a capture headless (`-i eth0 -q --sqlite run.db`) and attach to it from any terminal, any number of times. Host, service and account analytics are rebuilt from the stored findings.
+- **SQLite output**:
+    - WAL journaling;
+    - a commit about once a second while findings arrive (option `commit_interval`);
+    - new `runs` columns `source`, `updated`, `finished` and `stats` (every run counter as JSON), added in place to existing databases.
+- **Fix:** `--tui` together with `--sqlite` stored no findings. The sink was opened on the dashboard's UI thread and written from the analysis thread, so SQLite rejected every write, and each one was counted as a sink error.
+- New public helpers: `RunStats.snapshot()` and `RunStats.from_snapshot()`; `observe()` on the analytics and detection enrichers, which replays stored findings without re-deriving tags or alerts; and `netcreds_ng.session.combine_summary()`.
+
 ### Live capture start-up
 
 - Typing just `netcreds-ng` now finds the default interface. scapy's routing table was never loaded, so the interface was always unknown and the run stopped with "could not find an active interface". If scapy cannot tell, netcreds-ng picks the first active interface with a routable IPv4 address, preferring physical adapters.

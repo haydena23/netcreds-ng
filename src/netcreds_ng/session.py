@@ -65,6 +65,19 @@ def _worker(path: str, config: SessionConfig) -> tuple[list[Finding], RunStats, 
     return found, stats, pipeline.errors
 
 
+def combine_summary(analytics: AnalyticsEnricher | None, detection: DetectionEnricher | None) -> dict[str, Any]:
+    """The analytics summary of a run: host profiles and counters, plus alerts, services and scores."""
+    out: dict[str, Any] = analytics.summary() if analytics else {}
+    if detection is not None:
+        det = detection.summary()
+        out.update({k: v for k, v in det.items() if k != "host_scores"})
+        scores = det["host_scores"]
+        for host in out.get("hosts", []):
+            host["score"] = scores.get(host["ip"], 0)
+        out["host_scores"] = scores
+    return out
+
+
 class Session:
     def __init__(self, registry: Registry, config: SessionConfig, listeners: Iterable[Callable[[Finding], None]] = ()):
         self.config = config
@@ -111,15 +124,7 @@ class Session:
         return observe
 
     def summary(self) -> dict[str, Any]:
-        out: dict[str, Any] = self.analytics.summary() if self.analytics else {}
-        if self.detection is not None:
-            det = self.detection.summary()
-            out.update({k: v for k, v in det.items() if k != "host_scores"})
-            scores = det["host_scores"]
-            for host in out.get("hosts", []):
-                host["score"] = scores.get(host["ip"], 0)
-            out["host_scores"] = scores
-        return out
+        return combine_summary(self.analytics, self.detection)
 
     def open(self) -> None:
         self.pipeline.open()

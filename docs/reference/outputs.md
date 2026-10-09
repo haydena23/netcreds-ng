@@ -81,7 +81,8 @@ timestamp,protocol,kind,risk,src,dst,username,domain,secret,value,tags,frame,plu
 ```sql
 CREATE TABLE runs (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    started REAL, frames INTEGER, findings INTEGER, duplicates INTEGER, errors INTEGER
+    started REAL, frames INTEGER, findings INTEGER, duplicates INTEGER, errors INTEGER,
+    source TEXT, updated REAL, finished REAL, stats TEXT
 );
 CREATE TABLE findings (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -95,7 +96,9 @@ CREATE INDEX idx_findings_proto ON findings(protocol, kind);
 CREATE INDEX idx_findings_hosts ON findings(src_ip, dst_ip);
 ```
 
-- Each run adds a `runs` row; its counters are filled in when the run ends. `started` is a Unix time.
+- Each run adds a `runs` row. `started`, `updated` and `finished` are Unix times; `source` is the capture file(s) or interface; `stats` is a JSON object with every run counter (the same counters as `--summary-json`, with raw timestamps). `finished` stays empty while the run is going, or if it never ended cleanly.
+- The database uses WAL journaling and is committed about once a second while findings arrive, together with the run's counters. Other programs, and [`--attach`](../guide/dashboard.md#background-capture-and-attach), can read it during the run. Option `commit_interval` (seconds, default 1) changes how often.
+- Databases made by earlier versions get the four new `runs` columns added the next time a run writes to them.
 - `ts` is the capture time as a Unix timestamp; `tags` is comma-separated; `extra` is a JSON object.
 - The database can be reused across runs, which gives you a history to compare. Example queries are in the [recipes](../guide/recipes.md#keep-a-queryable-history).
 

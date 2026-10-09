@@ -26,6 +26,8 @@ examples:
   netcreds-ng -p cap.pcapng --jsonl out.jsonl     findings as JSON lines (SIEM ingestion)
   sudo netcreds-ng -i eth0                        live interactive dashboard
   sudo netcreds-ng -i eth0 --no-tui -f 10.0.0.5   live, plain output, ignore a host
+  sudo netcreds-ng -i eth0 -q --sqlite run.db     headless capture into a database ...
+  netcreds-ng --attach run.db                     ... and the dashboard on it, from any terminal
   netcreds-ng --legacy -p capture.pcap            original net-creds output, byte for byte
   netcreds-ng --list-plugins                      show available plugins
 
@@ -48,6 +50,9 @@ def build_parser() -> argparse.ArgumentParser:
                      help="ignore traffic to/from these hosts (comma separated)")  # fmt: skip
     src.add_argument("-F", "--filterfile", metavar="FILE", help="file with hosts to ignore, one per line")
     src.add_argument("--bpf", metavar="EXPR", help="additional BPF filter for live capture")
+    src.add_argument("--attach", metavar="DB",
+                     help="open the dashboard on a findings database written by --sqlite, and follow it while "
+                          "another netcreds-ng run (e.g. a headless capture) adds to it")  # fmt: skip
 
     out = p.add_argument_group("output")
     out.add_argument("-v", "--verbose", action="store_true", help="do not truncate long values on screen")
@@ -164,6 +169,11 @@ def _dispatch(parser: argparse.ArgumentParser, args: argparse.Namespace) -> int:
         print(f"[ERROR] cannot read filter file: {exc}", file=sys.stderr)
         return EXIT_ERROR
 
+    if args.attach and (args.legacy or args.pcap or args.interface):
+        parser.error("--attach cannot be combined with -p, -i or --legacy")
+    if args.attach and args.tui is False:
+        parser.error("--attach always opens the dashboard; drop --no-tui")
+
     if args.legacy:
         if args.summary_json:
             parser.error("--summary-json cannot be combined with --legacy")
@@ -236,6 +246,10 @@ def _dispatch(parser: argparse.ArgumentParser, args: argparse.Namespace) -> int:
         jobs=max(1, args.jobs),
         plugin_dirs=args.plugin_dir + list(plugin_cfg.get("dirs", [])),
     )
+    if args.attach:
+        if outputs or args.summary_json:
+            parser.error("--attach reads an existing database; outputs and --summary-json cannot be used with it")
+        return _run_attach(args, registry, scfg, mask)
     if args.pcap:
         return _run_files(args, registry, scfg, mask)
     return _run_live(args, registry, scfg, mask, hosts)
@@ -270,6 +284,19 @@ def _list_interfaces() -> int:
         state = "up" if iface.up else "down"
         print(f"{mark} {iface.name:<30} {state:<5} {', '.join(iface.addresses)}")
     return EXIT_OK
+
+
+def _run_attach(args: argparse.Namespace, registry: Any, scfg: Any, mask: bool) -> int:
+    from netcreds_ng.tui.store import FindingStore, StoreError
+
+    try:
+        FindingStore(args.attach).close()  # fail here, with a message, rather than inside the dashboard
+    except StoreError as exc:
+        print(f"[ERROR] {exc}", file=sys.stderr)
+        return EXIT_ERROR
+    from netcreds_ng.tui.app import run_tui
+
+    return run_tui(registry, scfg, verbose=args.verbose, mask=mask, attach=args.attach)
 
 
 def _run_files(args: argparse.Namespace, registry: Any, scfg: Any, mask: bool) -> int:

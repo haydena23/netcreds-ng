@@ -156,3 +156,32 @@ def test_installed_entry_point_subprocess(tmp_path):
     assert proc.returncode == 0, proc.stderr
     assert any(json.loads(line).get("username") == "fakeuser" for line in proc.stdout.splitlines() if line.startswith("{"))
     assert str(ROOT) not in proc.stderr
+
+
+@pytest.mark.parametrize("extra", [["-p", FTP], ["--legacy"], ["--no-tui"], ["--jsonl", "x.jsonl"]])
+def test_attach_rejects_other_modes(tmp_path, capsys, extra):
+    db = tmp_path / "run.db"
+    assert main(["-p", FTP, "-q", "--sqlite", str(db)]) == EXIT_OK
+    with pytest.raises(SystemExit) as exc:
+        main(["--attach", str(db), *extra])
+    assert exc.value.code == 2 and "--attach" in capsys.readouterr().err
+
+
+def test_attach_bad_database(tmp_path, capsys):
+    assert main(["--attach", str(tmp_path / "missing.db")]) == EXIT_ERROR
+    assert "database not found" in capsys.readouterr().err
+    notdb = tmp_path / "notes.txt"
+    notdb.write_text("not a database " * 100, encoding="utf-8")
+    assert main(["--attach", str(notdb)]) == EXIT_ERROR
+    assert "not a netcreds-ng database" in capsys.readouterr().err
+
+
+def test_attach_opens_dashboard(tmp_path, monkeypatch):
+    import netcreds_ng.tui.app as tui_app
+
+    db = tmp_path / "run.db"
+    assert main(["-p", FTP, "-q", "--sqlite", str(db)]) == EXIT_OK
+    seen = {}
+    monkeypatch.setattr(tui_app, "run_tui", lambda registry, cfg, **kw: seen.update(kw) or 0)
+    assert main(["--attach", str(db), "--mask"]) == EXIT_OK
+    assert seen["attach"] == str(db) and seen["mask"] is True

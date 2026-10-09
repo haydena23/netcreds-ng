@@ -1,7 +1,7 @@
 # Command line
 
 ```text
-netcreds-ng [-h] [-p PATH] [-i IFACE] [-f HOSTS] [-F FILE] [--bpf EXPR] [-v] [-q] [--tui] [--no-tui] [--mask]
+netcreds-ng [-h] [-p PATH] [-i IFACE] [-f HOSTS] [-F FILE] [--bpf EXPR] [--attach DB] [-v] [-q] [--tui] [--no-tui] [--mask]
             [--no-browsing] [--min-risk {info,low,medium,high}] [--jsonl PATH] [--csv PATH] [--log PATH] [--sqlite PATH]
             [--html PATH] [--evidence PATH] [--cef PATH] [--summary-json PATH] [--webhook URL]
             [--webhook-format {generic,slack,teams,discord}]
@@ -12,7 +12,7 @@ netcreds-ng [-h] [-p PATH] [-i IFACE] [-f HOSTS] [-F FILE] [--bpf EXPR] [-v] [-q
 
 The program can also be run as `python -m netcreds_ng`.
 
-**Mode selection.** `--list-interfaces` and `--list-plugins` print and exit. Otherwise `--legacy` selects [legacy mode](../guide/legacy.md). Otherwise `-p` analyses capture files, and without `-p` netcreds-ng captures live on `-i` or the auto-detected interface.
+**Mode selection.** `--list-interfaces` and `--list-plugins` print and exit. Otherwise `--legacy` selects [legacy mode](../guide/legacy.md). Otherwise `--attach` opens the dashboard on a findings database, `-p` analyses capture files, and without either netcreds-ng captures live on `-i` or the auto-detected interface.
 
 ## Sources
 
@@ -35,6 +35,10 @@ A file of IP addresses to ignore, one per line. Empty lines and lines starting w
 ### `--bpf EXPR`
 
 An additional BPF filter for live capture, combined with the `-f` hosts using `and`. Ignored for capture files.
+
+### `--attach DB`
+
+Open the [dashboard](../guide/dashboard.md#background-capture-and-attach) on a findings database written by `--sqlite`, instead of analysing traffic. While another netcreds-ng run is still writing to the database (for example a headless live capture), the dashboard follows it and shows new findings within about a second. Host, service and account analytics are rebuilt from the stored findings. Cannot be combined with `-p`, `-i`, `--legacy`, `--no-tui`, outputs or `--summary-json`. A missing file, or a file that is not a netcreds-ng database, exits with code 1.
 
 ## Output
 

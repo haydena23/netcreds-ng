@@ -78,4 +78,4 @@ Every output also receives `mask` (true with `--mask`). The file outputs, `sqlit
 | `evidence` | `after` | 16 | packets selected after each finding |
 | `evidence` | `max_flows` | 20000 | connections buffered at once |
 
-`jsonl`, `csv`, `log`, `sqlite` and `cef` have no options besides `mask`.
+`jsonl`, `csv`, `log` and `cef` have no options besides `mask`. `sqlite` also takes `commit_interval` (seconds between commits while findings arrive, default 1).

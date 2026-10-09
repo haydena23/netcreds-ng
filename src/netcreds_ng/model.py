@@ -182,6 +182,29 @@ class RunStats:
     #: process re-counts when it publishes the worker's findings).
     PIPELINE_FIELDS = frozenset({"findings", "duplicates", "by_protocol", "by_kind"})
 
+    def snapshot(self) -> dict[str, Any]:
+        """Plain JSON-able copy of every counter (raw timestamps); :meth:`from_snapshot` reverses it."""
+        return {name: dict(v) if isinstance(v, Counter) else list(v) if isinstance(v, list) else v
+                for name, v in vars(self).items()}  # fmt: skip
+
+    @classmethod
+    def from_snapshot(cls, data: dict[str, Any]) -> RunStats:
+        """Rebuild stats from :meth:`snapshot` output; unknown keys are ignored, missing ones stay zero."""
+        stats = cls()
+        for name, default in vars(cls()).items():
+            if name not in data or data[name] is None:
+                continue
+            value = data[name]
+            if isinstance(default, Counter):
+                setattr(stats, name, Counter({str(k): int(v) for k, v in dict(value).items()}))
+            elif isinstance(default, list):
+                setattr(stats, name, [str(v) for v in value])
+            elif name in ("first_ts", "last_ts"):
+                setattr(stats, name, float(value))
+            else:
+                setattr(stats, name, int(value))
+        return stats
+
     def merge(self, other: RunStats) -> None:
         """Add another run's engine counters (e.g. from a worker process) into this one."""
         for name, value in vars(other).items():

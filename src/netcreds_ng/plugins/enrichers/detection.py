@@ -91,6 +91,21 @@ class DetectionEnricher(EnricherPlugin):
 
     # enrichment ------------------------------------------------------------------------
 
+    def observe(self, finding: Finding) -> None:
+        """Account for an already-enriched finding without raising alerts.
+
+        Rebuilds the service inventory and host scores from stored findings (the dashboard's
+        ``--attach`` mode). Stored alerts of this plugin count towards host scores as they did
+        when they were raised.
+        """
+        if finding.kind is Kind.ALERT:
+            if finding.plugin == self.name and "detection" in finding.extra:
+                self.alerts.append(finding)
+                self._alert_points(finding)
+            return
+        if finding.kind not in (Kind.URL, Kind.SEARCH, Kind.POST):
+            self._inventory(finding)
+
     def enrich(self, finding: Finding) -> Iterator[Finding]:
         if finding.kind is Kind.ALERT:
             return iter(())
@@ -215,10 +230,13 @@ class DetectionEnricher(EnricherPlugin):
         if f.protocol in ("RADIUS", "TACACS+"):
             alert.extra["note"] = "source is the NAS/AAA client; failures of several users behind it are aggregated"
         self.alerts.append(alert)
-        self.host_points[f.dst.ip] += _ALERT_POINTS
-        if kind != "targeted-account":
-            self.host_points[f.src.ip] += _ALERT_POINTS
+        self._alert_points(alert)
         return [alert]
+
+    def _alert_points(self, alert: Finding) -> None:
+        self.host_points[alert.dst.ip] += _ALERT_POINTS
+        if alert.extra.get("detection") != "targeted-account":
+            self.host_points[alert.src.ip] += _ALERT_POINTS
 
     # reporting ---------------------------------------------------------------------------
 
