@@ -8,4 +8,4 @@ netcreds-ng --list-plugins      # shows "rexec" with source entry-point:netcreds
 pytest examples/netcreds-ng-example-plugin/tests
 ```
 
-See ../../docs/PLUGINS.md for the plugin API.
+See ../../docs/plugins/ for the plugin API.

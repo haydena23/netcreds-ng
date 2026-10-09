@@ -1,4 +1,4 @@
-include README.md CHANGELOG.md LICENSE
+include README.md CHANGELOG.md LICENSE mkdocs.yml
 graft docs
 graft tools
 graft tests

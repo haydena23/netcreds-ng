@@ -1,0 +1,168 @@
+site_name: netcreds-ng
+site_description: Find the credentials and weak authentication your network is exposing.
+site_author: Tony Hayden
+repo_url: https://github.com/haydena23/netcreds-ng
+repo_name: haydena23/netcreds-ng
+edit_uri: edit/main/docs/
+copyright: netcreds-ng is licensed under GPL-3.0-or-later.
+
+theme:
+  name: material
+  icon:
+    logo: material/shield-search
+    repo: fontawesome/brands/github
+  favicon: assets/favicon.svg
+  palette:
+    - media: "(prefers-color-scheme)"
+      toggle:
+        icon: material/brightness-auto
+        name: Switch to light mode
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: indigo
+      accent: teal
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: indigo
+      accent: teal
+      toggle:
+        icon: material/brightness-4
+        name: Switch to system preference
+  features:
+    - navigation.tabs
+    - navigation.tabs.sticky
+    - navigation.sections
+    - navigation.top
+    - navigation.indexes
+    - navigation.footer
+    - toc.follow
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+    - content.code.annotate
+    - content.tabs.link
+
+extra_css:
+  - assets/extra.css
+
+hooks:
+  - tools/docs_hooks.py
+
+plugins:
+  - search
+  - autorefs
+  - mkdocstrings:
+      handlers:
+        python:
+          paths: [src]
+          inventories:
+            - https://docs.python.org/3/objects.inv
+          options:
+            docstring_style: sphinx
+            show_source: true
+            show_root_heading: true
+            show_root_full_path: false
+            show_symbol_type_heading: true
+            show_symbol_type_toc: true
+            members_order: source
+            group_by_category: true
+            separate_signature: true
+            show_signature_annotations: true
+            signature_crossrefs: true
+            merge_init_into_class: true
+            show_if_no_docstring: true
+            filters: ["!^_"]
+            heading_level: 2
+
+markdown_extensions:
+  - abbr
+  - admonition
+  - attr_list
+  - def_list
+  - footnotes
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.details
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.keys
+  - pymdownx.snippets:
+      base_path: ["."]
+      check_paths: true
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:
+      alternate_style: true
+
+validation:
+  nav:
+    omitted_files: warn
+    not_found: warn
+  links:
+    not_found: warn
+    anchors: warn
+
+nav:
+  - Home: index.md
+  - Getting started:
+      - getting-started/index.md
+      - Installation: getting-started/installation.md
+      - Quickstart: getting-started/quickstart.md
+      - Core concepts: getting-started/concepts.md
+  - User guide:
+      - guide/index.md
+      - Analysing captures: guide/analysing-captures.md
+      - Live capture: guide/live-capture.md
+      - Interactive dashboard: guide/dashboard.md
+      - Configuration: guide/configuration.md
+      - TLS decryption: guide/tls-decryption.md
+      - Alerts and analytics: guide/detections.md
+      - Legacy mode: guide/legacy.md
+      - Recipes: guide/recipes.md
+  - Reference:
+      - reference/index.md
+      - Command line: reference/cli.md
+      - Protocols: reference/protocols.md
+      - Findings: reference/findings.md
+      - Outputs and integrations: reference/outputs.md
+      - Plugin options: reference/plugin-options.md
+  - Architecture:
+      - architecture/index.md
+      - Packet engine: architecture/engine.md
+      - TLS decryption internals: architecture/tls.md
+      - Findings pipeline: architecture/pipeline.md
+      - Design principles: architecture/principles.md
+  - Plugins:
+      - plugins/index.md
+      - Protocol plugins: plugins/protocol-plugins.md
+      - Enrichers and sinks: plugins/enrichers-and-sinks.md
+      - Testing plugins: plugins/testing.md
+      - Distributing plugins: plugins/distributing.md
+  - API:
+      - api/index.md
+      - Data model: api/model.md
+      - Plugin API: api/plugin-api.md
+      - Plugin registry: api/registry.md
+      - Session: api/session.md
+      - Engine: api/engine.md
+      - Capture I/O: api/capture-io.md
+      - TLS: api/tls.md
+      - Output helpers: api/output.md
+      - Protocol parsers: api/proto.md
+      - Configuration: api/config.md
+      - Testing SDK: api/testing.md
+  - Development:
+      - development/index.md
+      - Parity testing: development/parity.md
+  - About:
+      - about/index.md
+      - Changelog: about/changelog.md

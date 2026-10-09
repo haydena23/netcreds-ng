@@ -38,12 +38,13 @@ Complete rewrite as a next-generation, defensive credential-exposure auditing to
   - Slack/Teams/Discord webhook formats (`--webhook-format`).
   - HTML report: executive summary, activity timeline, alerts, service inventory, shared accounts, host scores, print styling.
   - Console summary: alerts, cleartext services, TLS and direction counters.
-  - `docs/OUTPUTS.md` documents the field reference and Splunk/Elastic examples.
+  - `docs/reference/outputs.md` documents the field reference and Splunk/Elastic examples.
 - **Dashboard:**
   - filter language (`proto:`, `risk:medium+`, `host:`, `user:`, `tag:`, `kind:`, negation);
   - session view (`s`) and host drill-down (`o`/`d`);
   - saved filters (`Ctrl+S`, `f`);
   - packets/s with a sparkline, alert notifications, alerts and host scores in the analytics panel.
+- **Documentation:** a MkDocs (Material) site in `docs/` with `mkdocs.yml`: getting started, user guide, CLI/protocol/findings/outputs/plugin-option references, architecture, plugin development, and an API reference generated from docstrings. New `[docs]` extra and a `docs` workflow that builds with `--strict` and publishes to GitHub Pages. `docs/OUTPUTS.md` and `docs/PLUGINS.md` moved into `docs/reference/outputs.md` and `docs/plugins/`.
 - **Tooling:**
   - `tools/bench.py` (throughput benchmark and profiler);
   - `netcreds_ng.testing.tls_lab`, which creates real in-memory OpenSSL sessions for tests.

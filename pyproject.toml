@@ -34,6 +34,12 @@ dependencies = [
 [project.optional-dependencies]
 # TLS decryption with a key-log file (--tls-keylog). Prebuilt abi3 wheels on all major platforms.
 tls = ["cryptography>=42,<52"]
+# Documentation site (mkdocs.yml, docs/).
+docs = [
+    "mkdocs>=1.6,<2",
+    "mkdocs-material>=9.5,<10",
+    "mkdocstrings[python]>=0.27,<2",
+]
 dev = [
     "cryptography>=42,<52",
     "pytest>=8,<10",

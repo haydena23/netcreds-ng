@@ -1,0 +1,8 @@
+/* Small additions to the Material theme. */
+.md-typeset .grid.cards > ul > li { border-radius: .4rem; }
+.md-typeset table:not([class]) { font-size: .72rem; }
+.md-typeset table:not([class]) td code { white-space: nowrap; }
+.md-typeset .risk-high { color: var(--md-code-hl-keyword-color); font-weight: 600; }
+/* Console transcripts: keep columns aligned and avoid wrapping. */
+.md-typeset pre > code.language-console,
+.md-typeset pre > code.language-text { white-space: pre; }

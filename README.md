@@ -16,6 +16,15 @@ It is the Python 3 successor of Dan McInerney's [net-creds](https://github.com/D
 - **A plugin system** for new protocols, outputs and enrichers.
 - **Nothing dropped silently.** Parsing problems are counted and reported.
 
+## Documentation
+
+The full documentation (user guide, CLI and protocol reference, architecture, plugin development and API reference) is in [`docs/`](docs/index.md) and builds into a website with MkDocs:
+
+```bash
+pip install ".[docs]"
+mkdocs serve          # http://127.0.0.1:8000
+```
+
 ## Install
 
 Requires Python 3.11 or newer.
@@ -71,7 +80,7 @@ Useful options:
 
 Network outputs (webhook, syslog) only run when you ask for them. Exit codes: `0` ok, `1` error, `2` usage, `3` warnings with `--strict`, `130` interrupted.
 
-See [docs/OUTPUTS.md](docs/OUTPUTS.md) for the output formats, the JSON fields, and Splunk/Elastic examples.
+See [docs/reference/outputs.md](docs/reference/outputs.md) for the output formats, the JSON fields, and Splunk/Elastic examples.
 
 ### Interactive dashboard keys
 
@@ -171,7 +180,7 @@ Supported versions are TLS 1.2 (AES-GCM, ChaCha20-Poly1305, AES-CBC) and TLS 1.3
 
 ## Plugins
 
-Plugins are Python classes. They are loaded from installed packages (entry point group `netcreds_ng.plugins`), from `--plugin-dir`, or from the user plugin directory. See [docs/PLUGINS.md](docs/PLUGINS.md) for the API and a walkthrough, and [examples/netcreds-ng-example-plugin](examples/netcreds-ng-example-plugin) for an installable example.
+Plugins are Python classes. They are loaded from installed packages (entry point group `netcreds_ng.plugins`), from `--plugin-dir`, or from the user plugin directory. See [docs/plugins/](docs/plugins/index.md) for the API and a walkthrough, and [examples/netcreds-ng-example-plugin](examples/netcreds-ng-example-plugin) for an installable example.
 
 ## Development
 

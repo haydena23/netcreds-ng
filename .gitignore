@@ -10,3 +10,4 @@ dist/
 credentials.txt
 netcreds-ng-state.sqlite3
 .hypothesis/
+site/
