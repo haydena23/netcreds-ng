@@ -65,6 +65,8 @@ def build_parser() -> argparse.ArgumentParser:
         ("cef", "append findings as ArcSight CEF lines"),
     ):  # fmt: skip
         out.add_argument(f"--{fmt}", metavar="PATH", help=helptext)
+    out.add_argument("--summary-json", metavar="PATH",
+                     help="write the run summary (counters, capture health, analytics; no secrets) as JSON; - for stdout")  # fmt: skip
     out.add_argument("--webhook", metavar="URL", help="POST findings to a webhook (secrets masked)")
     out.add_argument("--webhook-format", choices=("generic", "slack", "teams", "discord"),
                      help="webhook payload style (default generic JSON)")  # fmt: skip
@@ -163,6 +165,8 @@ def _dispatch(parser: argparse.ArgumentParser, args: argparse.Namespace) -> int:
         return EXIT_ERROR
 
     if args.legacy:
+        if args.summary_json:
+            parser.error("--summary-json cannot be combined with --legacy")
         return _run_legacy(args, hosts)
 
     # plugin options: config tables, then --option overrides
@@ -303,11 +307,27 @@ def _run_files(args: argparse.Namespace, registry: Any, scfg: Any, mask: bool) -
     session.run_files(paths)
     session.close()
     renderer.summary(session.stats, session.summary(), session.errors)
+    if not _write_summary_json(args, session):
+        return EXIT_ERROR
     if args.strict and (session.stats.total_plugin_errors or session.stats.source_errors):
         return EXIT_WARNINGS
     if session.stats.source_errors and session.stats.frames == 0:
         return EXIT_ERROR
     return EXIT_OK
+
+
+def _write_summary_json(args: argparse.Namespace, session: Any) -> bool:
+    if not args.summary_json:
+        return True
+    from netcreds_ng.output import runsummary
+
+    try:
+        runsummary.write(args.summary_json, session.stats, session.summary(), session.config.source_label,
+                         session.errors)  # fmt: skip
+    except OSError as exc:
+        print(f"[ERROR] cannot write summary: {exc}", file=sys.stderr)
+        return False
+    return True
 
 
 def _run_live(args: argparse.Namespace, registry: Any, scfg: Any, mask: bool, hosts: list[str]) -> int:
@@ -356,8 +376,12 @@ def _run_live(args: argparse.Namespace, registry: Any, scfg: Any, mask: bool, ho
         capture.stop()
         session.close()
         if capture.dropped:
+            session.stats.dropped_packets += capture.dropped
             session.stats.source_errors.append(f"{capture.dropped} packets dropped (analysis slower than capture)")
         renderer.summary(session.stats, session.summary(), session.errors)
+        summary_ok = _write_summary_json(args, session)
+    if not summary_ok:
+        return EXIT_ERROR
     return EXIT_WARNINGS if args.strict and (session.stats.total_plugin_errors or session.stats.source_errors) else EXIT_OK
 
 

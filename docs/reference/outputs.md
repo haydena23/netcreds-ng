@@ -13,6 +13,7 @@ Every output receives the same findings, after de-duplication and enrichment (an
 | `--evidence PATH` | pcapng of the packets behind each finding | rewritten at the end of the run | never masked (raw packets) |
 | `--webhook URL` | JSON or chat message over HTTP(S) | batched | masked unless `webhook.include_secrets=true` |
 | `--syslog URL` | RFC 5424 syslog, CEF or JSON body | per finding | masked unless `syslog.include_secrets=true` |
+| `--summary-json PATH` | run summary: counters, capture health, analytics | written at the end of the run | none included |
 
 `-` as PATH writes to standard output for `jsonl`, `csv`, `log` and `cef`. Any output, including third-party ones, can also be selected with `-o FORMAT:PATH`. Output options are set with `--option <output>.<key>=<value>` or in an `[output.<name>]` table; see [plugin options](plugin-options.md#outputs).
 
@@ -28,6 +29,36 @@ One JSON object per line, keys sorted, UTF-8 (non-ASCII characters are kept, not
 ```
 
 The fields are described in the [findings reference](findings.md#fields). The same object, without the `timestamp` format difference, is used by the generic webhook format and the syslog JSON body.
+
+## Run summary JSON
+
+`--summary-json PATH` writes one JSON document per run (overwriting `PATH`). It holds no findings and no secrets; use `--jsonl` for findings. Top-level keys:
+
+| Key | Content |
+| --- | --- |
+| `tool`, `version`, `source` | `"netcreds-ng"`, the version, and the capture files or interface |
+| `stats` | every [run statistics](findings.md#run-statistics) counter; `first_ts`/`last_ts` as ISO 8601 UTC |
+| `capture_health` | `status` (`good`, `degraded`, `poor`), `verdict` (one sentence), `issues` (each with `code`, `severity`, `rate`, `message`), and `metrics` (the counters and rates behind them) |
+| `analytics` | risk counts, weak and reused password counts, exposed hosts with their accounts and protocols, alerts and host scores |
+| `errors` | the detailed warning messages kept for the run (the engine keeps about 100) |
+
+Abridged output for a public sample capture whose SPAN port copied most segments twice (Zeek's `tcp/ssh-dups.pcap`):
+
+```json
+{
+  "capture_health": {
+    "status": "good",
+    "verdict": "good, with notes: 75% of TCP data segments were captured twice: ...",
+    "issues": [{"code": "duplicates", "severity": "info", "rate": 0.75, "message": "..."}],
+    "metrics": {"tcp_flows": 1, "tcp_duplicate_segments": 162, "duplicate_rate": 0.75, "...": "..."}
+  },
+  "stats": {"frames": 377, "tcp_flows": 1, "...": "..."},
+  "tool": "netcreds-ng",
+  "version": "2.0.0.dev0"
+}
+```
+
+Issue codes: `one-sided`, `gaps`, `duplicates`, `truncated`, `dropped`, `no-handshake`. See [capture health](../guide/analysing-captures.md#capture-health) for their meaning and thresholds.
 
 ## CSV
 

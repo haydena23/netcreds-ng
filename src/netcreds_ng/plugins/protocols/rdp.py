@@ -168,7 +168,8 @@ class RDPPlugin(ProtocolPlugin):
         if cookie is not None:
             st.evidence = True
             if cookie.startswith(b"Cookie: mstshash="):
-                raw = cookie[len(b"Cookie: mstshash=") :][:_MAX_COOKIE]
+                # Clients pad short names with spaces (seen in real captures: "JOHN-PC  ").
+                raw = cookie[len(b"Cookie: mstshash=") :][:_MAX_COOKIE].strip(b" ")
                 if raw:
                     domain, sep, user = raw.rpartition(b"\\")
                     st.username = text(user if sep else raw)

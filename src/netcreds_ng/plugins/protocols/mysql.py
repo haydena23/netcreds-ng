@@ -1,4 +1,4 @@
-"""MySQL / MariaDB login exposure (HandshakeResponse41, AuthSwitch, OK/ERR results).
+"""MySQL / MariaDB login exposure (HandshakeResponse41, AuthSwitch, COM_CHANGE_USER, OK/ERR results).
 
 Scope: cleartext passwords (``mysql_clear_password``) are reported in full as credentials.
 Challenge/response logins (``mysql_native_password``, ``caching_sha2_password``, ...) are
@@ -18,6 +18,7 @@ _MAX_BUFFER = 1024 * 1024
 _MAX_PACKET = 64 * 1024  # authentication-phase packets are small; larger means "not MySQL"
 
 CLIENT_CONNECT_WITH_DB = 0x00000008
+CLIENT_COMPRESS = 0x00000020
 CLIENT_PROTOCOL_41 = 0x00000200
 CLIENT_SSL = 0x00000800
 CLIENT_SECURE_CONNECTION = 0x00008000
@@ -27,8 +28,10 @@ CLIENT_PLUGIN_AUTH_LENENC_CLIENT_DATA = 0x00200000
 _CLEAR = "mysql_clear_password"
 _NATIVE = "mysql_native_password"
 
+COM_CHANGE_USER = 0x11
+
 # phases
-_WAIT_HELLO, _WAIT_RESPONSE, _AUTH = 0, 1, 2
+_WAIT_HELLO, _WAIT_RESPONSE, _AUTH, _COMMAND = 0, 1, 2, 3
 
 
 @dataclass
@@ -41,6 +44,9 @@ class _State:
     database: str | None = None
     plugin: str | None = None
     switch_plugin: str | None = None  # set after an AuthSwitchRequest, until the client replies
+    caps: int = 0  # client capabilities from the HandshakeResponse (needed to parse COM_CHANGE_USER)
+    logged_in: bool = False  # a login succeeded on this connection (later _AUTH phases are change-users)
+    skip: list[int] = field(default_factory=lambda: [0, 0])  # bytes left of an oversized packet, per direction
 
 
 def _cstr(buf: bytes, pos: int) -> tuple[bytes, int] | None:
@@ -79,10 +85,22 @@ class MySQLPlugin(ProtocolPlugin):
         st: _State = ctx.state
         buf = st.bufs[direction]
         buf += data
+        d = int(direction)
         while not ctx.detached:
+            if st.skip[d]:  # rest of an oversized command-phase packet
+                n = min(len(buf), st.skip[d])
+                del buf[:n]
+                st.skip[d] -= n
+                if st.skip[d]:
+                    break
             if len(buf) < 4:
                 break
             length = int.from_bytes(buf[0:3], "little")
+            seq = buf[3]
+            if st.phase == _COMMAND and (length == 0 or length > _MAX_PACKET):
+                # Large queries/results, LOAD DATA terminators: skip them, keep framing.
+                st.skip[d] = 4 + length
+                continue
             if length > _MAX_PACKET or length == 0:
                 ctx.detach()
                 return
@@ -93,7 +111,7 @@ class MySQLPlugin(ProtocolPlugin):
             if direction is Direction.SERVER_TO_CLIENT:
                 self._server_packet(ctx, st, payload)
             else:
-                self._client_packet(ctx, st, payload)
+                self._client_packet(ctx, st, payload, seq)
         if len(buf) > _MAX_BUFFER:
             ctx.detach()
 
@@ -107,7 +125,13 @@ class MySQLPlugin(ProtocolPlugin):
         marker = payload[0]
         if marker == 0x00:
             self._result(ctx, st, ok=True, extra={})
-            ctx.detach()
+            st.logged_in = True
+            if st.caps & CLIENT_COMPRESS:
+                ctx.detach()  # compressed framing after login: commands cannot be read
+                return
+            # Stay for the command phase: COM_CHANGE_USER re-authenticates on the same connection
+            # (seen in real captures). A capture gap still detaches the plugin.
+            st.phase = _COMMAND
         elif marker == 0xFF:
             code = struct.unpack_from("<H", payload, 1)[0] if len(payload) >= 3 else None
             msg = payload[3:]
@@ -152,13 +176,21 @@ class MySQLPlugin(ProtocolPlugin):
         st.phase = _WAIT_RESPONSE
 
     # -- client ------------------------------------------------------------------------
-    def _client_packet(self, ctx: Context, st: _State, payload: bytes) -> None:
+    def _client_packet(self, ctx: Context, st: _State, payload: bytes, seq: int = 0) -> None:
         if st.phase == _WAIT_HELLO:
             ctx.detach()  # client spoke before any server handshake: not a login we can interpret
             return
         if st.phase == _WAIT_RESPONSE:
             self._response(ctx, st, payload)
             return
+        if st.phase == _AUTH and st.logged_in and seq == 0:
+            st.phase, st.switch_plugin = _COMMAND, None  # a new command: the change-user reply was not seen
+        if st.phase == _COMMAND:
+            # Only a packet with sequence id 0 starts a command; LOAD DATA file contents and
+            # continuation packets have higher ids and may begin with any byte.
+            if seq == 0 and payload[0] == COM_CHANGE_USER:
+                self._change_user(ctx, st, payload)
+            return  # queries and other commands are not looked at
         if st.switch_plugin is not None:
             plugin, st.switch_plugin = st.switch_plugin, None
             if plugin == _CLEAR:
@@ -228,11 +260,50 @@ class MySQLPlugin(ProtocolPlugin):
         st.user = text(user[0][:128])
         st.database = database
         st.plugin = plugin
+        st.caps = caps
         st.phase = _AUTH
         if plugin == _CLEAR:
             self._emit_cleartext(ctx, st, auth.rstrip(b"\x00") if auth.endswith(b"\x00") else auth, plugin)
         else:
             self._emit_event(ctx, st, plugin, empty=alen == 0)
+
+    def _change_user(self, ctx: Context, st: _State, p: bytes) -> None:
+        # COM_CHANGE_USER: 0x11 user\0 auth-response schema\0 [charset(2)] [plugin\0] [attrs]
+        user = _cstr(p, 1)
+        if user is None:
+            return
+        pos = user[1]
+        if st.caps & CLIENT_SECURE_CONNECTION:
+            if pos >= len(p):
+                return
+            alen, pos = p[pos], pos + 1
+            if pos + alen > len(p):
+                return
+            auth, pos = p[pos : pos + alen], pos + alen
+        else:
+            nul = _cstr(p, pos)
+            if nul is None:
+                return
+            auth, pos = nul
+        db = _cstr(p, pos)
+        database = None
+        plugin = st.plugin or _NATIVE
+        named = False  # the packet names its auth plugin (only then can the response be cleartext)
+        if db is not None:
+            database, pos = text(db[0][:128]), db[1]
+            if st.caps & CLIENT_PROTOCOL_41:
+                pos += 2  # character set
+            if st.caps & CLIENT_PLUGIN_AUTH and pos < len(p):
+                name = _cstr(p, pos)
+                raw = p[pos:] if name is None else name[0]
+                if raw:
+                    plugin, named = text(raw[:64]), True
+        st.user, st.database, st.plugin, st.switch_plugin = text(user[0][:128]), database, plugin, None
+        st.phase = _AUTH
+        if plugin == _CLEAR and named:
+            self._emit_cleartext(ctx, st, auth.rstrip(b"\x00"), plugin)
+        else:
+            self._emit_event(ctx, st, plugin, empty=len(auth) == 0, change_user=True)
 
     def _response_320(self, ctx: Context, st: _State, p: bytes) -> None:
         # HandshakeResponse320 (pre-4.1): caps(2) max-packet(3) user\0 [scrambled password\0 [db]]
@@ -264,12 +335,13 @@ class MySQLPlugin(ProtocolPlugin):
             extra["server_version"] = st.server_version
         return extra
 
-    def _emit_event(self, ctx: Context, st: _State, plugin: str, *, empty: bool) -> None:
+    def _emit_event(self, ctx: Context, st: _State, plugin: str, *, empty: bool, change_user: bool = False) -> None:
+        tags = (["empty-password"] if empty else []) + (["change-user"] if change_user else [])
         ctx.emit(
             Direction.CLIENT_TO_SERVER, Kind.AUTH_EVENT, protocol="MySQL", username=st.user,
-            value=f"MySQL login ({plugin})", plugin=self.name,
+            value=f"MySQL {'change user' if change_user else 'login'} ({plugin})", plugin=self.name,
             risk="high" if empty else "medium",
-            tags=self._tags(ctx, *(["empty-password"] if empty else [])),
+            tags=self._tags(ctx, *tags),
             extra=self._extra(st, plugin),
         )  # fmt: skip
 

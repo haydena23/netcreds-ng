@@ -4,6 +4,22 @@
 
 Complete rewrite as a next-generation, defensive credential-exposure auditing tool. The original net-creds behaviour is the parity floor, verified by tests against output recorded from the original Python 2 tool.
 
+### Real-traffic validation and capture health (M13)
+
+- **Capture health.** The run summary ends with a verdict on how much of the traffic the capture saw (`good`, `degraded`, `poor`). It covers:
+  - one-sided TCP flows (asymmetric routing, or a SPAN port that sees one direction);
+  - missing stream bytes;
+  - segments captured twice (SPAN copying both ingress and egress);
+  - truncated frames, live drops, and flows picked up mid-stream.
+
+  New `RunStats` counters: `tcp_data_segments`, `tcp_payload_bytes`, `tcp_duplicate_segments`, `tcp_one_sided_flows`, `tcp_unanswered_syn_flows`, `tcp_no_handshake_flows`, `dropped_packets`. Duplicates are informational: they never hide findings. Analysis is about 3% slower (`tools/bench.py --flows 20000`, measured side by side with the previous commit).
+- **`--summary-json PATH`** writes the run summary as JSON: counters, capture health and analytics, with no secrets.
+- **`tools/corpus.py`** and **`tools/corpus.toml`** run every plugin over 113 public sample captures (Zeek, the Wireshark wiki, and the Wireshark test suite, pinned by SHA-256 and downloaded outside the repository) and compare the identities found with tshark's. See *Development → Real-traffic validation*.
+- **Fixes found on real traffic:**
+  - Kerberos errors 1 (account expired), 18 (account disabled or locked out) and 23 (password expired) are now reported as failed logins.
+  - MySQL `COM_CHANGE_USER` re-authentication is reported (tag `change-user`), including empty and cleartext passwords. The plugin now follows the command phase of a connection after login. It reads only packets with sequence id 0 as commands, so `LOAD DATA` contents are never mistaken for a command, skips packets over 64 KiB, and stops on the compressed protocol.
+  - Space padding in RDP `mstshash` cookies is removed from the username.
+
 ### Release preparation (M6)
 
 - Live capture is marked **beta** for 2.0.0: it has not been validated on a real network yet. Capture-file analysis is the supported workflow.

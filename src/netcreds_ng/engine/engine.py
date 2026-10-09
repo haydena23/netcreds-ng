@@ -39,6 +39,14 @@ IDLE_TIMEOUT = 600.0
 UDP_IDLE_TIMEOUT = 120.0
 MAX_FLOWS = 100_000
 SWEEP_EVERY = 2048
+#: A data segment repeated (same seq, ack, flags, length and non-zero IP ID) within this many seconds is
+#: a capture duplicate: a retransmission is a new IP datagram with a new ID. Typical of a SPAN port that
+#: copies both ingress and egress.
+DUP_WINDOW = 0.010
+#: Without an IP ID (IPv6, or IPv4 senders that set 0 with DF) only the timing separates a SPAN copy
+#: (microseconds apart) from a fast retransmit (at least one round trip later), so the window is tight.
+DUP_WINDOW_NO_ID = 0.0002
+DUP_HISTORY = 4
 
 
 @dataclass(eq=False)
@@ -75,6 +83,13 @@ class _Flow:
     tls_client: Direction = Direction.CLIENT_TO_SERVER  # direction that sent the ClientHello
     # Bytes held back per direction while deciding whether a ClientHello starts (E-8).
     tls_probe: list[bytes] = field(default_factory=lambda: [b"", b""])
+    # Capture health (TCP): packets per direction, whether a direction sent anything but bare SYNs,
+    # whether a handshake was seen, and recent data-segment signatures per direction.
+    packets: list[int] = field(default_factory=lambda: [0, 0])
+    beyond_syn: list[bool] = field(default_factory=lambda: [False, False])
+    data: list[bool] = field(default_factory=lambda: [False, False])  # a direction carried payload
+    handshake: bool = False
+    recent: tuple[list[tuple[Any, ...]], list[tuple[Any, ...]]] = field(default_factory=lambda: ([], []))
 
 
 def _canonical(src: str, sport: int, dst: str, dport: int) -> tuple[Any, ...]:
@@ -122,9 +137,11 @@ class Engine:
         st = self.stats
         st.frames += 1
         self._now = frame.timestamp
-        if st.first_ts is None:
+        # Earliest and latest, not first and last seen: merged or out-of-order captures (and the -j merge).
+        if st.first_ts is None or frame.timestamp < st.first_ts:
             st.first_ts = frame.timestamp
-        st.last_ts = frame.timestamp
+        if st.last_ts is None or frame.timestamp > st.last_ts:
+            st.last_ts = frame.timestamp
         if frame.wirelen > len(frame.data):
             st.truncated_frames += 1
         res = l3_offset(frame)
@@ -281,6 +298,7 @@ class Engine:
             self._flows.move_to_end(key)
         flow.last_ts = pkt.timestamp
         direction = self._direction(flow, pkt)
+        self._health(flow, direction, pkt)
         assert flow.streams is not None
         stream = flow.streams[direction]
         other = flow.streams[direction.other]
@@ -304,6 +322,43 @@ class Engine:
             flow.pending_close.add(int(direction))
             if len(flow.pending_close) == 2:
                 flow.closing = True
+
+    def _health(self, flow: _Flow, direction: Direction, pkt: Packet) -> None:
+        """Capture-health bookkeeping for one TCP packet (see :mod:`netcreds_ng.health`)."""
+        d = int(direction)
+        flow.packets[d] += 1
+        if pkt.flags & TCP_SYN:
+            flow.handshake = True
+        if pkt.payload or pkt.flags & TCP_ACK:  # anything but a bare SYN answers or follows a reply
+            flow.beyond_syn[d] = True
+        if not pkt.payload:
+            return
+        flow.data[d] = True
+        st = self.stats
+        st.tcp_data_segments += 1
+        st.tcp_payload_bytes += len(pkt.payload)
+        sig = (pkt.seq, pkt.ack, pkt.flags, len(pkt.payload), pkt.ip.ident)
+        window = DUP_WINDOW if pkt.ip.ident else DUP_WINDOW_NO_ID
+        recent = flow.recent[d]
+        for old_sig, old_ts in recent:
+            if old_sig == sig and 0 <= pkt.timestamp - old_ts <= window:
+                st.tcp_duplicate_segments += 1
+                return
+        recent.append((sig, pkt.timestamp))
+        if len(recent) > DUP_HISTORY:
+            del recent[0]
+
+    def _health_close(self, flow: _Flow) -> None:
+        st = self.stats
+        if not flow.handshake and (flow.data[0] or flow.data[1]):
+            st.tcp_no_handshake_flows += 1  # a data-less straggler (late ACK after RST/close) is not a pickup
+        sent = [n > 0 for n in flow.packets]
+        if sent[0] != sent[1]:
+            side = 0 if sent[0] else 1
+            if flow.data[side]:
+                st.tcp_one_sided_flows += 1  # the sender sent data in reply to or awaiting a side we never saw
+            elif not flow.beyond_syn[side]:
+                st.tcp_unanswered_syn_flows += 1  # a connection attempt nobody answered: not a capture problem
 
     def _is_new_connection(self, flow: _Flow, pkt: Packet) -> bool:
         """A SYN on a known 4-tuple starts a new connection unless it repeats the original SYN."""
@@ -441,6 +496,7 @@ class Engine:
         if flow is None:
             return
         if flow.streams is not None:
+            self._health_close(flow)
             for direction in (Direction.CLIENT_TO_SERVER, Direction.SERVER_TO_CLIENT):
                 self._flush_stream(flow, direction, flow.streams[direction].flush, None)
             for direction in (Direction.CLIENT_TO_SERVER, Direction.SERVER_TO_CLIENT):

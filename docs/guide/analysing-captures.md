@@ -101,6 +101,30 @@ netcreds-ng --list-plugins                            # see what is available
 
 Plugins have options too, such as `--option http.cookies=all`. See [plugin options](../reference/plugin-options.md).
 
+## Capture health
+
+A capture can be incomplete in ways that silently hide credentials: a SPAN port that mirrors only one direction, a switch that drops packets under load, a snapshot length that cuts payloads short. The run summary ends with a one-line verdict on how much of the traffic the capture really saw:
+
+```text
+Capture health: degraded - the capture misses the return path for 40% of TCP flows (10 of 25): asymmetric
+routing, or a SPAN port or tap that sees only one direction. Logins may be seen without their result.
+```
+
+The status is `good`, `degraded` or `poor`. Informational notes keep the status `good` and read "good, with notes: ...". Further issues are listed below it as `also: ...`.
+
+| Issue | Measured as | Warning / poor at | What to do |
+| --- | --- | --- | --- |
+| one-sided flows | TCP flows where only one direction was captured, although that direction shows the other one answered | 10% / 30% of answered flows | mirror both directions (SPAN source "both", or a tap that aggregates both); check for asymmetric routing |
+| gaps | TCP stream bytes missing from the capture | 1% / 5% of stream bytes; in a small capture, a warning at 5%. Any gap is at least listed as information | the capture point is dropping packets: reduce load on the SPAN port, use a tap, or capture to a faster disk |
+| duplicates | data segments captured twice: same sequence, length and IP ID within 10 ms (without an IP ID, as in IPv6, within 0.2 ms) | information at 5%: findings are unaffected | the SPAN port copies ingress and egress of the same traffic; mirror one of them |
+| truncated frames | frames shorter than their wire length | 1% / 10% of frames | capture with a full snapshot length (`tcpdump -s 0`) |
+| dropped packets | live capture only: packets lost because analysis fell behind | any / 5% | capture to a file and analyse it with `-p` |
+| no handshake | flows picked up mid-stream | information only, at 50% | normal for short captures; logins made before the capture started are not visible |
+
+Rates are judged only on enough evidence: at least 20 TCP flows, 100 data segments or 100 frames, depending on the measure. In a smaller capture, one-sided flows are still reported (as a warning) when most of the flows are one-sided. Connection attempts that were never answered (a bare SYN) are not counted as one-sided, because the network, not the capture, is the cause. Neither are stray packets without data, such as a late ACK after a reset. With `-j`, a connection split across two files is seen as two partial connections, which can raise the one-sided and no-handshake counts.
+
+The same assessment, with every counter and rate, is written by [`--summary-json`](../reference/outputs.md#run-summary-json).
+
 ## Understanding warnings
 
 When something went wrong, the summary ends with a **Warnings** section:
@@ -115,7 +139,7 @@ Warnings:
 | Warning | What happened | What it means for results |
 | --- | --- | --- |
 | *file*: truncated ... / corrupt ... | the capture ends mid-record | every complete frame before it was analysed |
-| *file*: not a pcap or pcapng file | unsupported or compressed file | the file was skipped |
+| *file*: not a pcap or pcapng file | another format (for example Microsoft NetMon or snoop) | the file was skipped; convert it with `editcap -F pcapng in out.pcapng` |
 | *plugin*: N error(s) | a plugin raised an exception | that plugin stopped analysing that connection; other plugins and connections were unaffected |
 | TLS not decrypted: ... | a TLS session uses an unsupported version or cipher | see [TLS decryption](tls-decryption.md) |
 | N packets dropped | live capture only: analysis fell behind the capture | see [live capture](live-capture.md#dropped-packets) |

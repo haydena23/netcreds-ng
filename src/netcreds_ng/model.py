@@ -147,6 +147,14 @@ class RunStats:
     tcp_gaps: int = 0
     tcp_gap_bytes: int = 0
     tcp_retransmitted_bytes: int = 0
+    # capture health (see netcreds_ng.health)
+    tcp_data_segments: int = 0
+    tcp_payload_bytes: int = 0
+    tcp_duplicate_segments: int = 0  # data segments captured twice within a few ms (SPAN copying both ways)
+    tcp_one_sided_flows: int = 0  # only one direction captured, although it shows the other one answered
+    tcp_unanswered_syn_flows: int = 0  # bare SYNs with no reply (connection attempts, not a capture problem)
+    tcp_no_handshake_flows: int = 0  # picked up mid-stream: no SYN seen
+    dropped_packets: int = 0  # live capture: packets lost because analysis fell behind
     evicted_flows: int = 0
     ambiguous_flows: int = 0  # client/server roles unknown: plugins were offered both orientations
     orientation_resolved: int = 0  # ambiguous (flow, plugin) pairs settled by a finding

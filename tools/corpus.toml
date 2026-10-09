@@ -1,0 +1,1008 @@
+# Public sample captures for real-traffic validation (milestone M13).
+# Downloaded by tools/corpus.py into a directory OUTSIDE the repository; never commit them.
+# sha256 pins each file (recorded on first download, 2026-10-08).
+# Zeek traces are pinned to commit b5bf5e5e42e9015d78be5105d2fd1e41eb75361f.
+
+[[capture]]
+name = "zeek/ftp/ipv4.pcap"
+url = "https://raw.githubusercontent.com/zeek/zeek/b5bf5e5e42e9015d78be5105d2fd1e41eb75361f/testing/btest/Traces/ftp/ipv4.pcap"
+sha256 = "319a1b263ddf5211118c183d31a90a6e50f826e2e21146a8e237a61b165c83f6"
+size = 12078
+license = "BSD-3-Clause (Zeek repository licence; zeek/zeek COPYING)"
+plugins = ["ftp"]
+
+[[capture]]
+name = "zeek/ftp/ipv6.pcap"
+url = "https://raw.githubusercontent.com/zeek/zeek/b5bf5e5e42e9015d78be5105d2fd1e41eb75361f/testing/btest/Traces/ftp/ipv6.pcap"
+sha256 = "4c8758ed3b65f04b7d20ba99396ce3675777951f89fb36cdf3c682ee24e2db79"
+size = 18679
+license = "BSD-3-Clause (Zeek repository licence; zeek/zeek COPYING)"
+plugins = ["ftp"]
+
+[[capture]]
+name = "zeek/ftp/bruteforce.pcap"
+url = "https://raw.githubusercontent.com/zeek/zeek/b5bf5e5e42e9015d78be5105d2fd1e41eb75361f/testing/btest/Traces/ftp/bruteforce.pcap"
+sha256 = "d06135c0405803a0a6fbf0b595ba6e2b9264a9cbea4f012b6fbb9b6ee596e402"
+size = 55167
+license = "BSD-3-Clause (Zeek repository licence; zeek/zeek COPYING)"
+plugins = ["ftp", "detection"]
+notes = "many failed FTP logins"
+
+[[capture]]
+name = "zeek/ftp/ftp-password-pass-command.pcap"
+url = "https://raw.githubusercontent.com/zeek/zeek/b5bf5e5e42e9015d78be5105d2fd1e41eb75361f/testing/btest/Traces/ftp/ftp-password-pass-command.pcap"
+sha256 = "7ba333882ff15d3b41c4ec29b3bad23e592c4ee2bfc7ec0727f68d69ef594a22"
+size = 1289
+license = "BSD-3-Clause (Zeek repository licence; zeek/zeek COPYING)"
+plugins = ["ftp"]
+
+[[capture]]
+name = "zeek/ftp/ftp-auth-tls.pcap"
+url = "https://raw.githubusercontent.com/zeek/zeek/b5bf5e5e42e9015d78be5105d2fd1e41eb75361f/testing/btest/Traces/ftp/ftp-auth-tls.pcap"
+sha256 = "453ee3fa1b2b3060208a397e6c5134e45aa1ac65d0981146ebffdb5a66e52848"
+size = 11363
+license = "BSD-3-Clause (Zeek repository licence; zeek/zeek COPYING)"
+plugins = ["ftp"]
+notes = "AUTH TLS: no cleartext credentials expected"
+
+[[capture]]
+name = "zeek/http/basic-auth-with-colon.pcap"
+url = "https://raw.githubusercontent.com/zeek/zeek/b5bf5e5e42e9015d78be5105d2fd1e41eb75361f/testing/btest/Traces/http/basic-auth-with-colon.pcap"
+sha256 = "e6fa97c5c0d237c4b0728c8c92cd3bc5255fdafae54dcc7750ede37220b765d6"
+size = 1840
+license = "BSD-3-Clause (Zeek repository licence; zeek/zeek COPYING)"
+plugins = ["http"]
+notes = "password containing a colon"
+
+[[capture]]
+name = "zeek/http/basic-auth-with-extra-space.pcap"
+url = "https://raw.githubusercontent.com/zeek/zeek/b5bf5e5e42e9015d78be5105d2fd1e41eb75361f/testing/btest/Traces/http/basic-auth-with-extra-space.pcap"
+sha256 = "34ac844b3940ba6351ede11bb02de79c87e21cfa2642ef2831a195bc9e0db416"
+size = 5180
+license = "BSD-3-Clause (Zeek repository licence; zeek/zeek COPYING)"
+plugins = ["http"]
+
+[[capture]]
+name = "zeek/http/cooper-grill-dvwa.pcapng"
+url = "https://raw.githubusercontent.com/zeek/zeek/b5bf5e5e42e9015d78be5105d2fd1e41eb75361f/testing/btest/Traces/http/cooper-grill-dvwa.pcapng"
+sha256 = "5c90bbcbe4fb2d41f7e7bb146558fbefb45f25942f279e276256734eac5ac9f0"
+size = 23312
+license = "BSD-3-Clause (Zeek repository licence; zeek/zeek COPYING)"
+plugins = ["http"]
+notes = "DVWA web form logins"
+
+[[capture]]
+name = "zeek/http/post.pcap"
+url = "https://raw.githubusercontent.com/zeek/zeek/b5bf5e5e42e9015d78be5105d2fd1e41eb75361f/testing/btest/Traces/http/post.pcap"
+sha256 = "0c1044c9af7df951e3339f7dfec78c0be3091e990797e7b10e3324613c26dd48"
+size = 1871
+license = "BSD-3-Clause (Zeek repository licence; zeek/zeek COPYING)"
+plugins = ["http"]
+
+[[capture]]
+name = "zeek/http/get_nosyn.pcap"
+url = "https://raw.githubusercontent.com/zeek/zeek/b5bf5e5e42e9015d78be5105d2fd1e41eb75361f/testing/btest/Traces/http/get_nosyn.pcap"
+sha256 = "97c27f15c28d095523a85befeedcdd64d443b32372a8b71bc0631dceeb12c322"
+size = 6069
+license = "BSD-3-Clause (Zeek repository licence; zeek/zeek COPYING)"
+plugins = ["http"]
+notes = "capture health: no handshake"
+
+[[capture]]
+name = "zeek/http/http-large-gap.pcap"
+url = "https://raw.githubusercontent.com/zeek/zeek/b5bf5e5e42e9015d78be5105d2fd1e41eb75361f/testing/btest/Traces/http/http-large-gap.pcap"
+sha256 = "a75f7d6df39a4255ccbc6198bf7e957a40286a1382c3ed515436df51fb5fb3e2"
+size = 1339
+license = "BSD-3-Clause (Zeek repository licence; zeek/zeek COPYING)"
+plugins = ["http"]
+notes = "capture health: large TCP gap"
+
+[[capture]]
+name = "zeek/http/1000-requests-one-dropped-response.pcap.gz"
+url = "https://raw.githubusercontent.com/zeek/zeek/b5bf5e5e42e9015d78be5105d2fd1e41eb75361f/testing/btest/Traces/http/1000-requests-one-dropped-response.pcap.gz"
+sha256 = "46a3dfa9f9f4f5a8206cc7950def810f7a6e7e2c80746b736b74cedacdffdfac"
+size = 67501
+license = "BSD-3-Clause (Zeek repository licence; zeek/zeek COPYING)"
+plugins = ["http"]
+notes = "capture health; gzip input"
+
+[[capture]]
+name = "zeek/http/http-lower-case-nonstandard-port.pcap"
+url = "https://raw.githubusercontent.com/zeek/zeek/b5bf5e5e42e9015d78be5105d2fd1e41eb75361f/testing/btest/Traces/http/http-lower-case-nonstandard-port.pcap"
+sha256 = "695a85fe768fe293bee7693125784e196c31a67c0c1cfa53c6045ff23d7ccbb4"
+size = 2087
+license = "BSD-3-Clause (Zeek repository licence; zeek/zeek COPYING)"
+plugins = ["http"]
+notes = "HTTP on a non-standard port"
+
+[[capture]]
+name = "zeek/http-vlan-0.pcap"
+url = "https://raw.githubusercontent.com/zeek/zeek/b5bf5e5e42e9015d78be5105d2fd1e41eb75361f/testing/btest/Traces/http-vlan-0.pcap"
+sha256 = "9774b12eff22035e4fd43b3de8fb0ae986d58c94175f08751105ea81c7539124"
+size = 6391
+license = "BSD-3-Clause (Zeek repository licence; zeek/zeek COPYING)"
+plugins = ["http"]
+notes = "802.1Q"
+
+[[capture]]
+name = "zeek/http-qinq-0.pcap"
+url = "https://raw.githubusercontent.com/zeek/zeek/b5bf5e5e42e9015d78be5105d2fd1e41eb75361f/testing/btest/Traces/http-qinq-0.pcap"
+sha256 = "dbeacb579ed0438fe26b0f439ee8050d1526d1f0dfbb24e9b66ccfe2c52ca794"
+size = 6447
+license = "BSD-3-Clause (Zeek repository licence; zeek/zeek COPYING)"
+plugins = ["http"]
+notes = "QinQ"
+
+[[capture]]
+name = "zeek/ipv6-http-atomic-frag.pcap"
+url = "https://raw.githubusercontent.com/zeek/zeek/b5bf5e5e42e9015d78be5105d2fd1e41eb75361f/testing/btest/Traces/ipv6-http-atomic-frag.pcap"
+sha256 = "00f1d3a522d98c2d42a2346add205aee02a83cb4dc8e8b81264eed9ae750574d"
+size = 4040
+license = "BSD-3-Clause (Zeek repository licence; zeek/zeek COPYING)"
+plugins = ["http"]
+notes = "IPv6 atomic fragment"
+
+[[capture]]
+name = "zeek/smtp.pcap"
+url = "https://raw.githubusercontent.com/zeek/zeek/b5bf5e5e42e9015d78be5105d2fd1e41eb75361f/testing/btest/Traces/smtp.pcap"
+sha256 = "2c003ad125a8230bb5b857ed91acf6d0639343b6c3b62d9c71a1f718ffd15e1d"
+size = 40943
+license = "BSD-3-Clause (Zeek repository licence; zeek/zeek COPYING)"
+plugins = ["mail"]
+
+[[capture]]
+name = "zeek/smtp-one-side-only.pcap"
+url = "https://raw.githubusercontent.com/zeek/zeek/b5bf5e5e42e9015d78be5105d2fd1e41eb75361f/testing/btest/Traces/smtp-one-side-only.pcap"
+sha256 = "db0b1a2c8990f95f43bf10d83cc1c417dee62e05d96eac57417133af3aaa7a39"
+size = 20120
+license = "BSD-3-Clause (Zeek repository licence; zeek/zeek COPYING)"
+plugins = ["mail"]
+notes = "capture health: one direction only"
+
+[[capture]]
+name = "zeek/pop3/pop3.pcap"
+url = "https://raw.githubusercontent.com/zeek/zeek/b5bf5e5e42e9015d78be5105d2fd1e41eb75361f/testing/btest/Traces/pop3/pop3.pcap"
+sha256 = "8270e0a2a65aeac9e021a7f77a9306c156f46b6119e90d701afaee86bb79cd02"
+size = 29993
+license = "BSD-3-Clause (Zeek repository licence; zeek/zeek COPYING)"
+plugins = ["mail"]
+
+[[capture]]
+name = "zeek/pop3/redis-50-pings.pcap"
+url = "https://raw.githubusercontent.com/zeek/zeek/b5bf5e5e42e9015d78be5105d2fd1e41eb75361f/testing/btest/Traces/pop3/redis-50-pings.pcap"
+sha256 = "04f4068627565f47653e6e5c01985eb279ffe0e152cdb9ee2900283fcdfb9ec7"
+size = 10770
+license = "BSD-3-Clause (Zeek repository licence; zeek/zeek COPYING)"
+plugins = ["mail", "redis"]
+notes = "Redis on the POP3 port (negative for mail)"
+
+[[capture]]
+name = "zeek/ldap/simpleauth.pcap"
+url = "https://raw.githubusercontent.com/zeek/zeek/b5bf5e5e42e9015d78be5105d2fd1e41eb75361f/testing/btest/Traces/ldap/simpleauth.pcap"
+sha256 = "29b6eb0ac639788956811f3e6e51bdf80d1d63e7d4448f8ae2bf2cdc7e48fde4"
+size = 1390
+license = "BSD-3-Clause (Zeek repository licence; zeek/zeek COPYING)"
+plugins = ["ldap"]
+
+[[capture]]
+name = "zeek/ldap/simpleauth-diff-port.pcap"
+url = "https://raw.githubusercontent.com/zeek/zeek/b5bf5e5e42e9015d78be5105d2fd1e41eb75361f/testing/btest/Traces/ldap/simpleauth-diff-port.pcap"
+sha256 = "4c5768b5d569523f69c2f0cf2527d326c9c7f2ce32a6580ba463ae6694643d7e"
+size = 1390
+license = "BSD-3-Clause (Zeek repository licence; zeek/zeek COPYING)"
+plugins = ["ldap"]
+notes = "LDAP on a non-standard port"
+
+[[capture]]
+name = "zeek/ldap/aduser1.pcap"
+url = "https://raw.githubusercontent.com/zeek/zeek/b5bf5e5e42e9015d78be5105d2fd1e41eb75361f/testing/btest/Traces/ldap/aduser1.pcap"
+sha256 = "2f5b471dd093c05b8c713e6322a967f5e2b24db2476927caf49346e6d6005272"
+size = 13575
+license = "BSD-3-Clause (Zeek repository licence; zeek/zeek COPYING)"
+plugins = ["ldap"]
+
+[[capture]]
+name = "zeek/ldap/aduser1-ntlm.pcap"
+url = "https://raw.githubusercontent.com/zeek/zeek/b5bf5e5e42e9015d78be5105d2fd1e41eb75361f/testing/btest/Traces/ldap/aduser1-ntlm.pcap"
+sha256 = "1efe2c9981c3f35b859655926627154b3d91bd2e737342482f5c439cc4e05656"
+size = 3159
+license = "BSD-3-Clause (Zeek repository licence; zeek/zeek COPYING)"
+plugins = ["ldap", "ntlm"]
+
+[[capture]]
+name = "zeek/ldap/sasl-ntlm.pcap"
+url = "https://raw.githubusercontent.com/zeek/zeek/b5bf5e5e42e9015d78be5105d2fd1e41eb75361f/testing/btest/Traces/ldap/sasl-ntlm.pcap"
+sha256 = "a83f24effa46ddbb746eb8138373a2e11045e99448c7b1fcd692991a6b329591"
+size = 4052
+license = "BSD-3-Clause (Zeek repository licence; zeek/zeek COPYING)"
+plugins = ["ldap", "ntlm"]
+
+[[capture]]
+name = "zeek/ldap/sasl-scram-sha-512.pcap"
+url = "https://raw.githubusercontent.com/zeek/zeek/b5bf5e5e42e9015d78be5105d2fd1e41eb75361f/testing/btest/Traces/ldap/sasl-scram-sha-512.pcap"
+sha256 = "df641f9d91b43440cc850538c4f75a886a92be29b681441f84fab8adcf7a8161"
+size = 4297
+license = "BSD-3-Clause (Zeek repository licence; zeek/zeek COPYING)"
+plugins = ["ldap"]
+
+[[capture]]
+name = "zeek/ldap/sasl-srp-who-am-i.pcap"
+url = "https://raw.githubusercontent.com/zeek/zeek/b5bf5e5e42e9015d78be5105d2fd1e41eb75361f/testing/btest/Traces/ldap/sasl-srp-who-am-i.pcap"
+sha256 = "fcb9a2efad22399d3f84f4d4831548a50c437e2f102ad9289f6199461a4b9139"
+size = 2838
+license = "BSD-3-Clause (Zeek repository licence; zeek/zeek COPYING)"
+plugins = ["ldap"]
+
+[[capture]]
+name = "zeek/ldap/ldap_invalid_credentials.pcap"
+url = "https://raw.githubusercontent.com/zeek/zeek/b5bf5e5e42e9015d78be5105d2fd1e41eb75361f/testing/btest/Traces/ldap/ldap_invalid_credentials.pcap"
+sha256 = "18c8abfda320df1d8f821f1e3d238c3449bb8e5402030d53005f659df52851c9"
+size = 15618
+license = "BSD-3-Clause (Zeek repository licence; zeek/zeek COPYING)"
+plugins = ["ldap"]
+notes = "failed binds"
+
+[[capture]]
+name = "zeek/ldap/ldap-starttls.pcap"
+url = "https://raw.githubusercontent.com/zeek/zeek/b5bf5e5e42e9015d78be5105d2fd1e41eb75361f/testing/btest/Traces/ldap/ldap-starttls.pcap"
+sha256 = "e9898ac40a2c1ae7df135044c8d29b747384ed1dfd9c2ed47ff5f8ed5d119bdd"
+size = 6009
+license = "BSD-3-Clause (Zeek repository licence; zeek/zeek COPYING)"
+plugins = ["ldap"]
+notes = "StartTLS"
+
+[[capture]]
+name = "zeek/ldap/krb5-sign-seal-01.pcap"
+url = "https://raw.githubusercontent.com/zeek/zeek/b5bf5e5e42e9015d78be5105d2fd1e41eb75361f/testing/btest/Traces/ldap/krb5-sign-seal-01.pcap"
+sha256 = "7d245c79ea3446fab71eafcfc5ba32747fe4ba417ec557f27489a46f7d872539"
+size = 4957
+license = "BSD-3-Clause (Zeek repository licence; zeek/zeek COPYING)"
+plugins = ["ldap", "kerberos"]
+notes = "SASL GSSAPI sign and seal"
+
+[[capture]]
+name = "zeek/krb/kinit.pcap"
+url = "https://raw.githubusercontent.com/zeek/zeek/b5bf5e5e42e9015d78be5105d2fd1e41eb75361f/testing/btest/Traces/krb/kinit.pcap"
+sha256 = "c8ac97a5761802f33a382bb277aabeca364bab6ea293fd4d0c266fd1061ca276"
+size = 94658
+license = "BSD-3-Clause (Zeek repository licence; zeek/zeek COPYING)"
+plugins = ["kerberos"]
+
+[[capture]]
+name = "zeek/krb/auth.pcap"
+url = "https://raw.githubusercontent.com/zeek/zeek/b5bf5e5e42e9015d78be5105d2fd1e41eb75361f/testing/btest/Traces/krb/auth.pcap"
+sha256 = "a8ba92a8601cffbd2269c4f186e0af911b9e9ff7dbfd184095eb27053588d8bb"
+size = 1447
+license = "BSD-3-Clause (Zeek repository licence; zeek/zeek COPYING)"
+plugins = ["kerberos"]
+
+[[capture]]
+name = "zeek/krb/smb_gssapi.pcap"
+url = "https://raw.githubusercontent.com/zeek/zeek/b5bf5e5e42e9015d78be5105d2fd1e41eb75361f/testing/btest/Traces/krb/smb_gssapi.pcap"
+sha256 = "99f599c37563b8d653a6233e54a28e85165e25c52392622427f60b8601c6e625"
+size = 2859
+license = "BSD-3-Clause (Zeek repository licence; zeek/zeek COPYING)"
+plugins = ["kerberos"]
+
+[[capture]]
+name = "zeek/krb/kerberos_tso.pcapng"
+url = "https://raw.githubusercontent.com/zeek/zeek/b5bf5e5e42e9015d78be5105d2fd1e41eb75361f/testing/btest/Traces/krb/kerberos_tso.pcapng"
+sha256 = "8b54bbf5aa77f58c472c5606fd7b797a7d992fd3c3706bbe54f80e322a25618a"
+size = 85764
+license = "BSD-3-Clause (Zeek repository licence; zeek/zeek COPYING)"
+plugins = ["kerberos"]
+notes = "TSO-sized segments"
+
+[[capture]]
+name = "zeek/smb/raw_ntlm_in_smb.pcap"
+url = "https://raw.githubusercontent.com/zeek/zeek/b5bf5e5e42e9015d78be5105d2fd1e41eb75361f/testing/btest/Traces/smb/raw_ntlm_in_smb.pcap"
+sha256 = "60186246ae31a9a076024cf718d6106c7487144dba8f891c144012592c2ef01f"
+size = 27214
+license = "BSD-3-Clause (Zeek repository licence; zeek/zeek COPYING)"
+plugins = ["ntlm"]
+
+[[capture]]
+name = "zeek/smb/smb3.pcap"
+url = "https://raw.githubusercontent.com/zeek/zeek/b5bf5e5e42e9015d78be5105d2fd1e41eb75361f/testing/btest/Traces/smb/smb3.pcap"
+sha256 = "1c93655903a730be5cb188a13f22a05ebb5ebc13438f37bee58f8b5e13b09bdb"
+size = 14564
+license = "BSD-3-Clause (Zeek repository licence; zeek/zeek COPYING)"
+plugins = ["ntlm"]
+
+[[capture]]
+name = "zeek/smb/smb311.pcap"
+url = "https://raw.githubusercontent.com/zeek/zeek/b5bf5e5e42e9015d78be5105d2fd1e41eb75361f/testing/btest/Traces/smb/smb311.pcap"
+sha256 = "ed8b303d07397ec50c72b8424ada5b10a4e26f2bf301370eeae1da0aa1214a86"
+size = 9642
+license = "BSD-3-Clause (Zeek repository licence; zeek/zeek COPYING)"
+plugins = ["ntlm"]
+
+[[capture]]
+name = "zeek/mysql/auth.pcap"
+url = "https://raw.githubusercontent.com/zeek/zeek/b5bf5e5e42e9015d78be5105d2fd1e41eb75361f/testing/btest/Traces/mysql/auth.pcap"
+sha256 = "c5101ae78f62e04c20f0a07d409cd37f30900d64ac18880a180fa2fc80ae576c"
+size = 16895
+license = "BSD-3-Clause (Zeek repository licence; zeek/zeek COPYING)"
+plugins = ["mysql"]
+
+[[capture]]
+name = "zeek/mysql/mysql.pcap"
+url = "https://raw.githubusercontent.com/zeek/zeek/b5bf5e5e42e9015d78be5105d2fd1e41eb75361f/testing/btest/Traces/mysql/mysql.pcap"
+sha256 = "471133b057b2794a077278ea3cba50ec55c4e6b0344e66bf60395d8d6f84c995"
+size = 6567
+license = "BSD-3-Clause (Zeek repository licence; zeek/zeek COPYING)"
+plugins = ["mysql"]
+
+[[capture]]
+name = "zeek/mysql/mysql8-navicat-login-failed.pcap"
+url = "https://raw.githubusercontent.com/zeek/zeek/b5bf5e5e42e9015d78be5105d2fd1e41eb75361f/testing/btest/Traces/mysql/mysql8-navicat-login-failed.pcap"
+sha256 = "5781d76b6b22a7e7ac4c872b632ff094cbd424573f9a5c8d96a182a9554c893f"
+size = 3227
+license = "BSD-3-Clause (Zeek repository licence; zeek/zeek COPYING)"
+plugins = ["mysql"]
+notes = "failed login"
+
+[[capture]]
+name = "zeek/mysql/caching_sha2_password.pcap"
+url = "https://raw.githubusercontent.com/zeek/zeek/b5bf5e5e42e9015d78be5105d2fd1e41eb75361f/testing/btest/Traces/mysql/caching_sha2_password.pcap"
+sha256 = "05dae74d03c874684b79393232df0e4ae6d3626a912883088f9ddb581697a7d6"
+size = 7561
+license = "BSD-3-Clause (Zeek repository licence; zeek/zeek COPYING)"
+plugins = ["mysql"]
+
+[[capture]]
+name = "zeek/mysql/caching_sha2_password-after-auth-switch.pcapng"
+url = "https://raw.githubusercontent.com/zeek/zeek/b5bf5e5e42e9015d78be5105d2fd1e41eb75361f/testing/btest/Traces/mysql/caching_sha2_password-after-auth-switch.pcapng"
+sha256 = "de721d6ce9d37e836d9e96be1b9ecb43c8b8b45f2261bdae6bb4cfdfc41e1bfe"
+size = 4412
+license = "BSD-3-Clause (Zeek repository licence; zeek/zeek COPYING)"
+plugins = ["mysql"]
+notes = "AuthSwitch"
+
+[[capture]]
+name = "zeek/mysql/change-user-success.pcap"
+url = "https://raw.githubusercontent.com/zeek/zeek/b5bf5e5e42e9015d78be5105d2fd1e41eb75361f/testing/btest/Traces/mysql/change-user-success.pcap"
+sha256 = "66abb73a607ccc9fbdcac5b6ef2ceecfda3f0598a002b6ca1c910422c9a77ef4"
+size = 3034
+license = "BSD-3-Clause (Zeek repository licence; zeek/zeek COPYING)"
+plugins = ["mysql"]
+notes = "COM_CHANGE_USER"
+
+[[capture]]
+name = "zeek/mysql/change-user-error.pcap"
+url = "https://raw.githubusercontent.com/zeek/zeek/b5bf5e5e42e9015d78be5105d2fd1e41eb75361f/testing/btest/Traces/mysql/change-user-error.pcap"
+sha256 = "68a7629dc8c8a9068a2e238a78e5073f5a9eb812da43dfa79df90c34191e5043"
+size = 2567
+license = "BSD-3-Clause (Zeek repository licence; zeek/zeek COPYING)"
+plugins = ["mysql"]
+notes = "COM_CHANGE_USER failure"
+
+[[capture]]
+name = "zeek/mysql/encrypted.pcap"
+url = "https://raw.githubusercontent.com/zeek/zeek/b5bf5e5e42e9015d78be5105d2fd1e41eb75361f/testing/btest/Traces/mysql/encrypted.pcap"
+sha256 = "b98fbd6ca505835d3be4f1a921ba44897f12cd1a472f36546f525bd1dc7c101f"
+size = 4188
+license = "BSD-3-Clause (Zeek repository licence; zeek/zeek COPYING)"
+plugins = ["mysql"]
+notes = "TLS after SSLRequest"
+
+[[capture]]
+name = "zeek/mysql/plain-amazon-rds.pcap"
+url = "https://raw.githubusercontent.com/zeek/zeek/b5bf5e5e42e9015d78be5105d2fd1e41eb75361f/testing/btest/Traces/mysql/plain-amazon-rds.pcap"
+sha256 = "26ffa143ca0ec343782bf28905b69ad3a0a4eb39f760c314975e427d737c84bf"
+size = 2186
+license = "BSD-3-Clause (Zeek repository licence; zeek/zeek COPYING)"
+plugins = ["mysql"]
+
+[[capture]]
+name = "zeek/postgresql/psql-login.pcap"
+url = "https://raw.githubusercontent.com/zeek/zeek/b5bf5e5e42e9015d78be5105d2fd1e41eb75361f/testing/btest/Traces/postgresql/psql-login.pcap"
+sha256 = "223e7de531fdb07df4301d061538b58de0ce447c39ba4415c390ed15b4940561"
+size = 2429
+license = "BSD-3-Clause (Zeek repository licence; zeek/zeek COPYING)"
+plugins = ["postgres"]
+
+[[capture]]
+name = "zeek/postgresql/psql-login-fail.pcap"
+url = "https://raw.githubusercontent.com/zeek/zeek/b5bf5e5e42e9015d78be5105d2fd1e41eb75361f/testing/btest/Traces/postgresql/psql-login-fail.pcap"
+sha256 = "2c61ff738835b8619c118cf10e04556ed7ecab1cfae56cb17b2cfa33df47b9f5"
+size = 1658
+license = "BSD-3-Clause (Zeek repository licence; zeek/zeek COPYING)"
+plugins = ["postgres"]
+
+[[capture]]
+name = "zeek/postgresql/psql-login-wrong.pcap"
+url = "https://raw.githubusercontent.com/zeek/zeek/b5bf5e5e42e9015d78be5105d2fd1e41eb75361f/testing/btest/Traces/postgresql/psql-login-wrong.pcap"
+sha256 = "0cde7d79863a4e23ce9bd75474788b29ede58c90da19a9aa137def3105f13d5f"
+size = 2311
+license = "BSD-3-Clause (Zeek repository licence; zeek/zeek COPYING)"
+plugins = ["postgres"]
+
+[[capture]]
+name = "zeek/postgresql/psql-login-no-role.pcap"
+url = "https://raw.githubusercontent.com/zeek/zeek/b5bf5e5e42e9015d78be5105d2fd1e41eb75361f/testing/btest/Traces/postgresql/psql-login-no-role.pcap"
+sha256 = "b04fdce1928ccc2ae853a6855f07c37dec066b7d0d8a8ccc0a988d3b3a90a8e8"
+size = 1567
+license = "BSD-3-Clause (Zeek repository licence; zeek/zeek COPYING)"
+plugins = ["postgres"]
+
+[[capture]]
+name = "zeek/postgresql/psql-login-no-sslrequest.pcap"
+url = "https://raw.githubusercontent.com/zeek/zeek/b5bf5e5e42e9015d78be5105d2fd1e41eb75361f/testing/btest/Traces/postgresql/psql-login-no-sslrequest.pcap"
+sha256 = "31575179ffb6b6bca7b17e1956f034912efce3f563e7f5c10a07ed4c5cbb041b"
+size = 3443
+license = "BSD-3-Clause (Zeek repository licence; zeek/zeek COPYING)"
+plugins = ["postgres"]
+
+[[capture]]
+name = "zeek/postgresql/psql-aws-ssl-disable-15432.pcap"
+url = "https://raw.githubusercontent.com/zeek/zeek/b5bf5e5e42e9015d78be5105d2fd1e41eb75361f/testing/btest/Traces/postgresql/psql-aws-ssl-disable-15432.pcap"
+sha256 = "8153c86ebacc7a6a03680728b3006864f7630ce2f0c51536a8d050cb0f4abfa9"
+size = 1994
+license = "BSD-3-Clause (Zeek repository licence; zeek/zeek COPYING)"
+plugins = ["postgres"]
+notes = "non-standard port"
+
+[[capture]]
+name = "zeek/postgresql/psql-aws-ssl-require.pcap"
+url = "https://raw.githubusercontent.com/zeek/zeek/b5bf5e5e42e9015d78be5105d2fd1e41eb75361f/testing/btest/Traces/postgresql/psql-aws-ssl-require.pcap"
+sha256 = "10c865115a2022839850ea4ef35499d88b552bf3730da8471b5798e69ae94d5e"
+size = 7804
+license = "BSD-3-Clause (Zeek repository licence; zeek/zeek COPYING)"
+plugins = ["postgres"]
+notes = "TLS"
+
+[[capture]]
+name = "zeek/postgresql/http-on-port-5432.pcap"
+url = "https://raw.githubusercontent.com/zeek/zeek/b5bf5e5e42e9015d78be5105d2fd1e41eb75361f/testing/btest/Traces/postgresql/http-on-port-5432.pcap"
+sha256 = "d178798db525bce8618183ac49ec61e2e849c1d7e6cd8d59b92639b53fa6e97c"
+size = 6335
+license = "BSD-3-Clause (Zeek repository licence; zeek/zeek COPYING)"
+plugins = ["postgres", "http"]
+notes = "HTTP on the PostgreSQL port (negative)"
+
+[[capture]]
+name = "zeek/postgresql/mysql-on-port-5432.pcap"
+url = "https://raw.githubusercontent.com/zeek/zeek/b5bf5e5e42e9015d78be5105d2fd1e41eb75361f/testing/btest/Traces/postgresql/mysql-on-port-5432.pcap"
+sha256 = "42094b42115230641e96820b626edbdb46fd7f53f94f6cb02cad80745391cb92"
+size = 3034
+license = "BSD-3-Clause (Zeek repository licence; zeek/zeek COPYING)"
+plugins = ["postgres", "mysql"]
+notes = "MySQL on the PostgreSQL port (negative)"
+
+[[capture]]
+name = "zeek/radius/radius.pcap"
+url = "https://raw.githubusercontent.com/zeek/zeek/b5bf5e5e42e9015d78be5105d2fd1e41eb75361f/testing/btest/Traces/radius/radius.pcap"
+sha256 = "50a03f558dc07d53e9059f60a2d03ba2ebe3f633148fde36cf59703d2bf05600"
+size = 775
+license = "BSD-3-Clause (Zeek repository licence; zeek/zeek COPYING)"
+plugins = ["radius"]
+
+[[capture]]
+name = "zeek/radius/radius_localhost.pcap"
+url = "https://raw.githubusercontent.com/zeek/zeek/b5bf5e5e42e9015d78be5105d2fd1e41eb75361f/testing/btest/Traces/radius/radius_localhost.pcap"
+sha256 = "4822c70dbd72d5501cb82ce0f829ed8b0c2ef7fd55b6a878419147e863e96958"
+size = 2511
+license = "BSD-3-Clause (Zeek repository licence; zeek/zeek COPYING)"
+plugins = ["radius"]
+
+[[capture]]
+name = "zeek/rdp/rdp-to-ssl.pcap"
+url = "https://raw.githubusercontent.com/zeek/zeek/b5bf5e5e42e9015d78be5105d2fd1e41eb75361f/testing/btest/Traces/rdp/rdp-to-ssl.pcap"
+sha256 = "ff44d3567d2583bd17c1a6fdd765049b082c800f671481a4d01bdf70721654eb"
+size = 134982
+license = "BSD-3-Clause (Zeek repository licence; zeek/zeek COPYING)"
+plugins = ["rdp"]
+
+[[capture]]
+name = "zeek/rdp/rdp-proprietary-encryption.pcap"
+url = "https://raw.githubusercontent.com/zeek/zeek/b5bf5e5e42e9015d78be5105d2fd1e41eb75361f/testing/btest/Traces/rdp/rdp-proprietary-encryption.pcap"
+sha256 = "df7117b972ca63e1c334a543a2883a9d1dbceec50e371d6279e68ba1eafeb73f"
+size = 142910
+license = "BSD-3-Clause (Zeek repository licence; zeek/zeek COPYING)"
+plugins = ["rdp"]
+notes = "standard RDP security"
+
+[[capture]]
+name = "zeek/rdp/rdp-no-cookie-mstshash.pcap"
+url = "https://raw.githubusercontent.com/zeek/zeek/b5bf5e5e42e9015d78be5105d2fd1e41eb75361f/testing/btest/Traces/rdp/rdp-no-cookie-mstshash.pcap"
+sha256 = "2f4d62f26e793f5003b20125f39db8cb572e06a874261a75341031e672801c72"
+size = 4348
+license = "BSD-3-Clause (Zeek repository licence; zeek/zeek COPYING)"
+plugins = ["rdp"]
+
+[[capture]]
+name = "zeek/rdp/rdp-x509.pcap"
+url = "https://raw.githubusercontent.com/zeek/zeek/b5bf5e5e42e9015d78be5105d2fd1e41eb75361f/testing/btest/Traces/rdp/rdp-x509.pcap"
+sha256 = "0173bcff16fd0fd86024f467ed2c7fe5df6930311981a03837545de221cf067b"
+size = 3135
+license = "BSD-3-Clause (Zeek repository licence; zeek/zeek COPYING)"
+plugins = ["rdp"]
+
+[[capture]]
+name = "zeek/redis/auth.pcap"
+url = "https://raw.githubusercontent.com/zeek/zeek/b5bf5e5e42e9015d78be5105d2fd1e41eb75361f/testing/btest/Traces/redis/auth.pcap"
+sha256 = "2502de01b30d24e5480a13b51d015dbe05a6ea3dfdf34ce8cffdeb996d971def"
+size = 1156
+license = "BSD-3-Clause (Zeek repository licence; zeek/zeek COPYING)"
+plugins = ["redis"]
+
+[[capture]]
+name = "zeek/redis/set.pcap"
+url = "https://raw.githubusercontent.com/zeek/zeek/b5bf5e5e42e9015d78be5105d2fd1e41eb75361f/testing/btest/Traces/redis/set.pcap"
+sha256 = "0dbaa1f2c493af4c20f41052015d70f1ce36cddb8c8dc14e544dbe9c63bee4ba"
+size = 1000
+license = "BSD-3-Clause (Zeek repository licence; zeek/zeek COPYING)"
+plugins = ["redis"]
+
+[[capture]]
+name = "zeek/redis/start-with-server.pcapng"
+url = "https://raw.githubusercontent.com/zeek/zeek/b5bf5e5e42e9015d78be5105d2fd1e41eb75361f/testing/btest/Traces/redis/start-with-server.pcapng"
+sha256 = "43a498e3b4738dc7c164d4193b8e576dd1a5af036fc8a07039c43c6b499348da"
+size = 872
+license = "BSD-3-Clause (Zeek repository licence; zeek/zeek COPYING)"
+plugins = ["redis"]
+notes = "server speaks first (negative)"
+
+[[capture]]
+name = "zeek/redis/django-cloud.pcapng"
+url = "https://raw.githubusercontent.com/zeek/zeek/b5bf5e5e42e9015d78be5105d2fd1e41eb75361f/testing/btest/Traces/redis/django-cloud.pcapng"
+sha256 = "568d3d9d8a66a741c72af765b525df0f2e0317dd0366a40e8f6da2005138cdd0"
+size = 66328
+license = "BSD-3-Clause (Zeek repository licence; zeek/zeek COPYING)"
+plugins = ["redis"]
+
+[[capture]]
+name = "zeek/sip/wireshark.pcap"
+url = "https://raw.githubusercontent.com/zeek/zeek/b5bf5e5e42e9015d78be5105d2fd1e41eb75361f/testing/btest/Traces/sip/wireshark.pcap"
+sha256 = "4e819dcceae793b109c6c55c5bfe0db4652deb2e2255b13621cf99e16f186869"
+size = 47420
+license = "BSD-3-Clause (Zeek repository licence; zeek/zeek COPYING)"
+plugins = ["sip"]
+
+[[capture]]
+name = "zeek/rfb/vncmac.pcap"
+url = "https://raw.githubusercontent.com/zeek/zeek/b5bf5e5e42e9015d78be5105d2fd1e41eb75361f/testing/btest/Traces/rfb/vncmac.pcap"
+sha256 = "56af06c974b9d975e41fef6702bf563a7176fd348637623dfbf6895fc0c7574c"
+size = 6033
+license = "BSD-3-Clause (Zeek repository licence; zeek/zeek COPYING)"
+plugins = ["vnc"]
+
+[[capture]]
+name = "zeek/rfb/vnc-mac-to-linux.pcap"
+url = "https://raw.githubusercontent.com/zeek/zeek/b5bf5e5e42e9015d78be5105d2fd1e41eb75361f/testing/btest/Traces/rfb/vnc-mac-to-linux.pcap"
+sha256 = "ab997d99d45ea5f4c1c6d1af83501bca61c181124fe60f6af7543081d7cc061f"
+size = 40255
+license = "BSD-3-Clause (Zeek repository licence; zeek/zeek COPYING)"
+plugins = ["vnc"]
+
+[[capture]]
+name = "zeek/rfb/vnc-scanner.pcap"
+url = "https://raw.githubusercontent.com/zeek/zeek/b5bf5e5e42e9015d78be5105d2fd1e41eb75361f/testing/btest/Traces/rfb/vnc-scanner.pcap"
+sha256 = "8b65ce3b349e5a1e8ba45d22ad5355f8c27a17b2f113891a7408445ca499153e"
+size = 1623
+license = "BSD-3-Clause (Zeek repository licence; zeek/zeek COPYING)"
+plugins = ["vnc"]
+
+[[capture]]
+name = "zeek/mqtt.pcap"
+url = "https://raw.githubusercontent.com/zeek/zeek/b5bf5e5e42e9015d78be5105d2fd1e41eb75361f/testing/btest/Traces/mqtt.pcap"
+sha256 = "784098a83341dc400689584f6b8fda08e6bfeff3d4004a490496daccac6e2029"
+size = 1813
+license = "BSD-3-Clause (Zeek repository licence; zeek/zeek COPYING)"
+plugins = ["mqtt"]
+
+[[capture]]
+name = "zeek/snmp/snmpv1_get.pcap"
+url = "https://raw.githubusercontent.com/zeek/zeek/b5bf5e5e42e9015d78be5105d2fd1e41eb75361f/testing/btest/Traces/snmp/snmpv1_get.pcap"
+sha256 = "ee1e4919f480150f69314cc59fae2ae9c6f90766223dadb2eb0196c2e40c6cd7"
+size = 7165
+license = "BSD-3-Clause (Zeek repository licence; zeek/zeek COPYING)"
+plugins = ["snmp"]
+
+[[capture]]
+name = "zeek/snmp/snmpv2_get.pcap"
+url = "https://raw.githubusercontent.com/zeek/zeek/b5bf5e5e42e9015d78be5105d2fd1e41eb75361f/testing/btest/Traces/snmp/snmpv2_get.pcap"
+sha256 = "a70e2aba9c335375e641487459021904ce0a127b27fb57029b7aceb28427cc16"
+size = 233
+license = "BSD-3-Clause (Zeek repository licence; zeek/zeek COPYING)"
+plugins = ["snmp"]
+
+[[capture]]
+name = "zeek/snmp/snmpv1_trap.pcap"
+url = "https://raw.githubusercontent.com/zeek/zeek/b5bf5e5e42e9015d78be5105d2fd1e41eb75361f/testing/btest/Traces/snmp/snmpv1_trap.pcap"
+sha256 = "0054dd912878d4253f5ecdc3e09aa19ccf9213ca0eda55d497eb06b8e983d83d"
+size = 143
+license = "BSD-3-Clause (Zeek repository licence; zeek/zeek COPYING)"
+plugins = ["snmp"]
+
+[[capture]]
+name = "zeek/snmp/snmpv3_get_next.pcap"
+url = "https://raw.githubusercontent.com/zeek/zeek/b5bf5e5e42e9015d78be5105d2fd1e41eb75361f/testing/btest/Traces/snmp/snmpv3_get_next.pcap"
+sha256 = "c73c6ef1c01284dd638bf77c13bfede558804dbec4eb9d291f6fd9057fc82626"
+size = 661
+license = "BSD-3-Clause (Zeek repository licence; zeek/zeek COPYING)"
+plugins = ["snmp"]
+
+[[capture]]
+name = "zeek/snmp/snmpwalk-short.pcap"
+url = "https://raw.githubusercontent.com/zeek/zeek/b5bf5e5e42e9015d78be5105d2fd1e41eb75361f/testing/btest/Traces/snmp/snmpwalk-short.pcap"
+sha256 = "fe0f1618498ac1849ac4a361ab6d9839e78b5997ec933ec264eede3cea36c98c"
+size = 43259
+license = "BSD-3-Clause (Zeek repository licence; zeek/zeek COPYING)"
+plugins = ["snmp"]
+
+[[capture]]
+name = "zeek/irc-basic.pcap"
+url = "https://raw.githubusercontent.com/zeek/zeek/b5bf5e5e42e9015d78be5105d2fd1e41eb75361f/testing/btest/Traces/irc-basic.pcap"
+sha256 = "1de47ded92ce5e2d71dcd4496febd23c7c9e71f97145a628eae2aea05f82d58a"
+size = 7719
+license = "BSD-3-Clause (Zeek repository licence; zeek/zeek COPYING)"
+plugins = ["irc"]
+
+[[capture]]
+name = "zeek/irc-more-commands.pcap"
+url = "https://raw.githubusercontent.com/zeek/zeek/b5bf5e5e42e9015d78be5105d2fd1e41eb75361f/testing/btest/Traces/irc-more-commands.pcap"
+sha256 = "0802059530a963dd4abb3e759d0c90ade4622140d8424b99f385ccec38c45411"
+size = 27903
+license = "BSD-3-Clause (Zeek repository licence; zeek/zeek COPYING)"
+plugins = ["irc"]
+
+[[capture]]
+name = "zeek/telnet-auth-missing-name.pcap"
+url = "https://raw.githubusercontent.com/zeek/zeek/b5bf5e5e42e9015d78be5105d2fd1e41eb75361f/testing/btest/Traces/telnet-auth-missing-name.pcap"
+sha256 = "a97d3073abb1ee469b795ca0fa4fbae36b4b63b0e3aa0fa42e378e76226a1826"
+size = 479
+license = "BSD-3-Clause (Zeek repository licence; zeek/zeek COPYING)"
+plugins = ["telnet"]
+
+[[capture]]
+name = "zeek/contentline/telnet-long-line-no-eol.pcapng.gz"
+url = "https://raw.githubusercontent.com/zeek/zeek/b5bf5e5e42e9015d78be5105d2fd1e41eb75361f/testing/btest/Traces/contentline/telnet-long-line-no-eol.pcapng.gz"
+sha256 = "70723c934e4b3c111dc2bf92fd351f26a27942661098862a02d14eaba023a59b"
+size = 223925
+license = "BSD-3-Clause (Zeek repository licence; zeek/zeek COPYING)"
+plugins = ["telnet"]
+notes = "gzip input; very long line"
+
+[[capture]]
+name = "zeek/tcp/ssh-dups.pcap"
+url = "https://raw.githubusercontent.com/zeek/zeek/b5bf5e5e42e9015d78be5105d2fd1e41eb75361f/testing/btest/Traces/tcp/ssh-dups.pcap"
+sha256 = "11d3ccffe70c0a44bbd2713c5630bc8230c0ae8fd5becfb3e534bdb2ede3f28a"
+size = 62870
+license = "BSD-3-Clause (Zeek repository licence; zeek/zeek COPYING)"
+plugins = []
+notes = "capture health: duplicated segments"
+
+[[capture]]
+name = "zeek/socks-auth.pcap"
+url = "https://raw.githubusercontent.com/zeek/zeek/b5bf5e5e42e9015d78be5105d2fd1e41eb75361f/testing/btest/Traces/socks-auth.pcap"
+sha256 = "6334b55d92a37a74b33af0ad3a92d9771fcc56b2046a157ab756bd4efe664ab2"
+size = 1326
+license = "BSD-3-Clause (Zeek repository licence; zeek/zeek COPYING)"
+plugins = []
+notes = "SOCKS5 username/password: no plugin yet (candidate for M14)"
+
+[[capture]]
+name = "wireshark/telnet-cooked.pcap"
+url = "https://wiki.wireshark.org/uploads/__moin_import__/attachments/SampleCaptures/telnet-cooked.pcap"
+sha256 = "ae870805f1e5f6a2621b1f6e1e0229b47cc96d917f42c215acbcfcd46f9d72fc"
+size = 9244
+license = "unspecified (Wireshark wiki SampleCaptures; no licence stated; download only, never redistribute)"
+plugins = ["telnet"]
+
+[[capture]]
+name = "wireshark/telnet-raw.pcap"
+url = "https://wiki.wireshark.org/uploads/__moin_import__/attachments/SampleCaptures/telnet-raw.pcap"
+sha256 = "7a2fdd843b401fb945b0604b9d760424541b045dac6424361f14d276db2b05a3"
+size = 24345
+license = "unspecified (Wireshark wiki SampleCaptures; no licence stated; download only, never redistribute)"
+plugins = ["telnet"]
+
+[[capture]]
+name = "wireshark/imap.cap"
+url = "https://wiki.wireshark.org/uploads/__moin_import__/attachments/SampleCaptures/imap.cap"
+sha256 = "fa9a9bcca7b7f2943d740d46b075565b0dbbcc0f60ab321bf577a7be9724b5a8"
+size = 31417
+license = "unspecified (Wireshark wiki SampleCaptures; no licence stated; download only, never redistribute)"
+plugins = ["mail"]
+
+[[capture]]
+name = "wireshark/smtp.pcap"
+url = "https://wiki.wireshark.org/uploads/__moin_import__/attachments/SampleCaptures/smtp.pcap"
+sha256 = "17ad230db1b6fd5dd18eb311092df1cf6eb162054bdb47697b89bef5a86a47ab"
+size = 27850
+license = "unspecified (Wireshark wiki SampleCaptures; no licence stated; download only, never redistribute)"
+plugins = ["mail"]
+notes = "AUTH LOGIN"
+
+[[capture]]
+name = "wireshark/FTPv6-1.cap"
+url = "https://wiki.wireshark.org/uploads/__moin_import__/attachments/SampleCaptures/FTPv6-1.cap"
+sha256 = "6ef8184b5770ee7a59853db213a2394a4eef72f7b245a31bb7f86c21c987aa1f"
+size = 178762
+license = "unspecified (Wireshark wiki SampleCaptures; no licence stated; download only, never redistribute)"
+plugins = ["ftp"]
+notes = "Microsoft NetMon 2.x file format: not supported by netcreds-ng (expected source error; convert with editcap -F pcapng)"
+
+[[capture]]
+name = "wireshark/NTLM-wenchao.pcap"
+url = "https://wiki.wireshark.org/uploads/__moin_import__/attachments/SampleCaptures/NTLM-wenchao.pcap"
+sha256 = "577931e35cf02e24eb575a6b612e94e4ed389699bb950dddf1f9f90e9464978e"
+size = 49851
+license = "unspecified (Wireshark wiki SampleCaptures; no licence stated; download only, never redistribute)"
+plugins = ["ntlm", "http"]
+
+[[capture]]
+name = "wireshark/snmp_usm.pcap"
+url = "https://wiki.wireshark.org/uploads/__moin_import__/attachments/SampleCaptures/snmp_usm.pcap"
+sha256 = "151c048d623e9fe510f8de8f842b8c13eebd203af74049936c6b0e6a947c58ea"
+size = 34608
+license = "unspecified (Wireshark wiki SampleCaptures; no licence stated; download only, never redistribute)"
+plugins = ["snmp"]
+notes = "SNMPv3 USM"
+
+[[capture]]
+name = "wireshark/vnc-sample.pcap"
+url = "https://wiki.wireshark.org/uploads/__moin_import__/attachments/SampleCaptures/vnc-sample.pcap"
+sha256 = "f1c5d9e2f2c963bbdef6c1fd3a5f6fe9d9e8b486e06e477a90476b09781c502f"
+size = 9516
+license = "unspecified (Wireshark wiki SampleCaptures; no licence stated; download only, never redistribute)"
+plugins = ["vnc"]
+
+[[capture]]
+name = "wireshark/mysql_complete.pcap"
+url = "https://wiki.wireshark.org/uploads/__moin_import__/attachments/SampleCaptures/mysql_complete.pcap"
+sha256 = "597d06e899df5746cd90f6ff387b79d4eefa5fcab27e55c3cc09102dd74e6abc"
+size = 6567
+license = "unspecified (Wireshark wiki SampleCaptures; no licence stated; download only, never redistribute)"
+plugins = ["mysql"]
+[[capture]]
+name = "wireshark/pgsql.cap.gz"
+url = "https://wiki.wireshark.org/uploads/__moin_import__/attachments/SampleCaptures/pgsql.cap.gz"
+sha256 = "4250f70479e340f9f547617ba045d327949d7e216631893208006d652e25bb54"
+size = 1917
+license = "unspecified (Wireshark wiki SampleCaptures; no licence stated; download only, never redistribute)"
+plugins = ["postgres"]
+notes = "gzip input"
+
+[[capture]]
+name = "wireshark/pgsql-jdbc.pcap.gz"
+url = "https://wiki.wireshark.org/uploads/__moin_import__/attachments/SampleCaptures/pgsql-jdbc.pcap.gz"
+sha256 = "15b51bb4cc197753c1ac6b7dc3cf5697f22a81e3bb5d2e1d24d15de469c3a06b"
+size = 590093
+license = "unspecified (Wireshark wiki SampleCaptures; no licence stated; download only, never redistribute)"
+plugins = ["postgres"]
+notes = "gzip input"
+
+[[capture]]
+name = "wireshark/radius_localhost.pcapng"
+url = "https://wiki.wireshark.org/uploads/__moin_import__/attachments/SampleCaptures/radius_localhost.pcapng"
+sha256 = "0f42088b4c8dea154ca26d5b872988140d2d8d7cade27004d24c5a0653298cc1"
+size = 2952
+license = "unspecified (Wireshark wiki SampleCaptures; no licence stated; download only, never redistribute)"
+plugins = ["radius"]
+
+[[capture]]
+name = "wireshark/TNS_Oracle1.pcap"
+url = "https://wiki.wireshark.org/uploads/__moin_import__/attachments/SampleCaptures/TNS_Oracle1.pcap"
+sha256 = "08055df1aa03cf2d65fd51beea81335853516e609ced076f63d11ffe08ba09c4"
+size = 14167
+license = "unspecified (Wireshark wiki SampleCaptures; no licence stated; download only, never redistribute)"
+plugins = ["oracle"]
+
+[[capture]]
+name = "wireshark/TNS_Oracle2.pcap"
+url = "https://wiki.wireshark.org/uploads/__moin_import__/attachments/SampleCaptures/TNS_Oracle2.pcap"
+sha256 = "a79cfab363dabdadb5f29c57472dff5c0040598748113277fc8ec4aa504646c4"
+size = 6606
+license = "unspecified (Wireshark wiki SampleCaptures; no licence stated; download only, never redistribute)"
+plugins = ["oracle"]
+
+[[capture]]
+name = "wireshark/TNS_Oracle3.pcap"
+url = "https://wiki.wireshark.org/uploads/__moin_import__/attachments/SampleCaptures/TNS_Oracle3.pcap"
+sha256 = "0b132c0482c494b79c37d1c3cc7ae08ee0a3c130c2d085887baf0eb870fb77ad"
+size = 7408
+license = "unspecified (Wireshark wiki SampleCaptures; no licence stated; download only, never redistribute)"
+plugins = ["oracle"]
+
+[[capture]]
+name = "wireshark/oracle12-example.pcapng"
+url = "https://wiki.wireshark.org/uploads/__moin_import__/attachments/SampleCaptures/oracle12-example.pcapng"
+sha256 = "842255a04c47c1dabe18d96bc5296ff705dc167ddcc6785651a14d0e27ffa79b"
+size = 3368
+license = "unspecified (Wireshark wiki SampleCaptures; no licence stated; download only, never redistribute)"
+plugins = ["oracle"]
+
+[[capture]]
+name = "wireshark/ms-sql-tds-rpc-requests.cap"
+url = "https://wiki.wireshark.org/uploads/__moin_import__/attachments/SampleCaptures/ms-sql-tds-rpc-requests.cap"
+sha256 = "8de89c7fa4ae159e6afe2c12a1460685f0941656278710e8caee30e2ba26ae7e"
+size = 16892
+license = "unspecified (Wireshark wiki SampleCaptures; no licence stated; download only, never redistribute)"
+plugins = ["mssql"]
+
+[[capture]]
+name = "wireshark/SkypeIRC.cap"
+url = "https://wiki.wireshark.org/uploads/__moin_import__/attachments/SampleCaptures/SkypeIRC.cap"
+sha256 = "bac79a9c3413637f871193589d848697af895b7f2700d949022224d59aa6830f"
+size = 420869
+license = "unspecified (Wireshark wiki SampleCaptures; no licence stated; download only, never redistribute)"
+plugins = ["irc"]
+
+[[capture]]
+name = "wireshark/metasploit-sip-invite-spoof.pcap"
+url = "https://wiki.wireshark.org/uploads/__moin_import__/attachments/SampleCaptures/metasploit-sip-invite-spoof.pcap"
+sha256 = "0d4b871f81f1bf2201b004b238b363cb8b674d27c510b2b8646da06a943dac62"
+size = 694
+license = "unspecified (Wireshark wiki SampleCaptures; no licence stated; download only, never redistribute)"
+plugins = ["sip"]
+
+[[capture]]
+name = "wireshark/c06-ldapv3-app-r1.pcap.gz"
+url = "https://wiki.wireshark.org/uploads/__moin_import__/attachments/SampleCaptures/c06-ldapv3-app-r1.pcap.gz"
+sha256 = "d4fdd6b1795154747cb96389540d0b296230a7e9260fbc903f0bc377c261d109"
+size = 1981770
+license = "unspecified (Wireshark wiki SampleCaptures; no licence stated; download only, never redistribute)"
+plugins = ["ldap"]
+notes = "PROTOS LDAP robustness suite: malformed input, expect no plugin errors"
+
+[[capture]]
+name = "wireshark/c06-snmpv1-req-app-r1.pcap.gz"
+url = "https://wiki.wireshark.org/uploads/__moin_import__/attachments/SampleCaptures/c06-snmpv1-req-app-r1.pcap.gz"
+sha256 = "5c37469956ab47c72689ed571acfdf834fffd8f08c49e9a001d84d745da9ea60"
+size = 410903
+license = "unspecified (Wireshark wiki SampleCaptures; no licence stated; download only, never redistribute)"
+plugins = ["snmp"]
+notes = "PROTOS SNMP robustness suite: malformed input, expect no plugin errors"
+
+
+# Wireshark test-suite files, pinned to commit 1543d27ca60c7ac0d6ba3f62b572848b86b8f43c.
+
+[[capture]]
+name = "wireshark-test/keys/http2-data-reassembly.keys"
+url = "https://gitlab.com/wireshark/wireshark/-/raw/1543d27ca60c7ac0d6ba3f62b572848b86b8f43c/test/keys/http2-data-reassembly.keys"
+sha256 = "081ab73fcd524edb3bd6eb45b724609e2a8aeeec8efa184c883bf54d0df4f200"
+size = 175
+license = "GPL-2.0-or-later (Wireshark repository test files)"
+kind = "keylog"
+plugins = []
+notes = "NSS key log for http2-data-reassembly.pcap"
+
+[[capture]]
+name = "wireshark-test/keys/tls12-chacha20poly1305.keys"
+url = "https://gitlab.com/wireshark/wireshark/-/raw/1543d27ca60c7ac0d6ba3f62b572848b86b8f43c/test/keys/tls12-chacha20poly1305.keys"
+sha256 = "bc3708c778ead641e15e23e26c080421c60742294662fcad0735a650deb5cf67"
+size = 1399
+license = "GPL-2.0-or-later (Wireshark repository test files)"
+kind = "keylog"
+plugins = []
+
+[[capture]]
+name = "wireshark-test/keys/tls13-20-chacha20poly1305.keys"
+url = "https://gitlab.com/wireshark/wireshark/-/raw/1543d27ca60c7ac0d6ba3f62b572848b86b8f43c/test/keys/tls13-20-chacha20poly1305.keys"
+sha256 = "c9b1a15ba592ed4c68b3c022bfbacbea899e8c30eabc2d65f583bd0394fee17e"
+size = 1313
+license = "GPL-2.0-or-later (Wireshark repository test files)"
+kind = "keylog"
+plugins = []
+
+[[capture]]
+name = "wireshark-test/keys/tls13-rfc8446.keys"
+url = "https://gitlab.com/wireshark/wireshark/-/raw/1543d27ca60c7ac0d6ba3f62b572848b86b8f43c/test/keys/tls13-rfc8446.keys"
+sha256 = "cefaad7c60d41c4aaa9c02aa6ce5d08a9566216b29f9bc3d74495a799e4ec946"
+size = 1422
+license = "GPL-2.0-or-later (Wireshark repository test files)"
+kind = "keylog"
+plugins = []
+
+[[capture]]
+name = "wireshark-test/keys/dhe1_keylog.dat"
+url = "https://gitlab.com/wireshark/wireshark/-/raw/1543d27ca60c7ac0d6ba3f62b572848b86b8f43c/test/keys/dhe1_keylog.dat"
+sha256 = "8af40422260df8b337f7f6cf483b5a0f691bf5d0b41370e76db0eae7e37db4bc"
+size = 260
+license = "GPL-2.0-or-later (Wireshark repository test files)"
+kind = "keylog"
+plugins = []
+
+[[capture]]
+name = "wireshark-test/captures/http2-data-reassembly.pcap"
+url = "https://gitlab.com/wireshark/wireshark/-/raw/1543d27ca60c7ac0d6ba3f62b572848b86b8f43c/test/captures/http2-data-reassembly.pcap"
+sha256 = "beaad9c9505c4381bcf2e03d614c2e761a8a499c952be47be6e24346e479afe2"
+size = 82151
+license = "GPL-2.0-or-later (Wireshark repository test files)"
+plugins = ["http2"]
+keylog = "wireshark-test/keys/http2-data-reassembly.keys"
+notes = "HTTP/2 over TLS, decrypted with its key log"
+
+[[capture]]
+name = "wireshark-test/captures/tls12-chacha20poly1305.pcap"
+url = "https://gitlab.com/wireshark/wireshark/-/raw/1543d27ca60c7ac0d6ba3f62b572848b86b8f43c/test/captures/tls12-chacha20poly1305.pcap"
+sha256 = "fc69b8b1bf48472957477c86d585bed1bf9fcd168484aa9c20ba9435d62d1f7b"
+size = 43693
+license = "GPL-2.0-or-later (Wireshark repository test files)"
+plugins = []
+keylog = "wireshark-test/keys/tls12-chacha20poly1305.keys"
+notes = "TLS 1.2 ChaCha20-Poly1305, decrypted with its key log"
+
+[[capture]]
+name = "wireshark-test/captures/tls13-20-chacha20poly1305.pcap"
+url = "https://gitlab.com/wireshark/wireshark/-/raw/1543d27ca60c7ac0d6ba3f62b572848b86b8f43c/test/captures/tls13-20-chacha20poly1305.pcap"
+sha256 = "0fcafe42260b12a29f87e2e778740989d97f2b2be2eacfd1ddc3c070d8eeb8af"
+size = 10336
+license = "GPL-2.0-or-later (Wireshark repository test files)"
+plugins = []
+keylog = "wireshark-test/keys/tls13-20-chacha20poly1305.keys"
+notes = "TLS 1.3 (draft 20) ChaCha20-Poly1305 with key log"
+
+[[capture]]
+name = "wireshark-test/captures/tls13-rfc8446.pcap"
+url = "https://gitlab.com/wireshark/wireshark/-/raw/1543d27ca60c7ac0d6ba3f62b572848b86b8f43c/test/captures/tls13-rfc8446.pcap"
+sha256 = "e24aaedb2912f9ea371f8a1fbd360ccccc0154737aa5e422e206cd8bc0b783aa"
+size = 4158
+license = "GPL-2.0-or-later (Wireshark repository test files)"
+plugins = []
+keylog = "wireshark-test/keys/tls13-rfc8446.keys"
+notes = "TLS 1.3 (RFC 8446) with key log"
+
+[[capture]]
+name = "wireshark-test/captures/dhe1.pcapng.gz"
+url = "https://gitlab.com/wireshark/wireshark/-/raw/1543d27ca60c7ac0d6ba3f62b572848b86b8f43c/test/captures/dhe1.pcapng.gz"
+sha256 = "e53fb95fd89229d132d0628e10c9fd40d86155c14c00b9a9e0f9fe556504174b"
+size = 1180
+license = "GPL-2.0-or-later (Wireshark repository test files)"
+plugins = []
+keylog = "wireshark-test/keys/dhe1_keylog.dat"
+notes = "TLS with DHE key exchange, with key log; gzip input"
+
+[[capture]]
+name = "wireshark-test/captures/mysql/mysql57.pcapng.gz"
+url = "https://gitlab.com/wireshark/wireshark/-/raw/1543d27ca60c7ac0d6ba3f62b572848b86b8f43c/test/captures/mysql/mysql57.pcapng.gz"
+sha256 = "c3e95690dfca73b75ef8e604e36909df62d53a76a7d47cf0db228dd6d34b99a0"
+size = 1738
+license = "GPL-2.0-or-later (Wireshark repository test files)"
+plugins = ["mysql"]
+notes = "MySQL 5.7 session"
+
+[[capture]]
+name = "wireshark-test/captures/mysql/mysql80.pcapng.gz"
+url = "https://gitlab.com/wireshark/wireshark/-/raw/1543d27ca60c7ac0d6ba3f62b572848b86b8f43c/test/captures/mysql/mysql80.pcapng.gz"
+sha256 = "7adf66df6119db46fabd9074e429a2d95f37348859825b1a53f923035116fa76"
+size = 1749
+license = "GPL-2.0-or-later (Wireshark repository test files)"
+plugins = ["mysql"]
+notes = "MySQL 8.0 session"
+
+[[capture]]
+name = "wireshark-test/captures/mysql/mariadb114.pcapng.gz"
+url = "https://gitlab.com/wireshark/wireshark/-/raw/1543d27ca60c7ac0d6ba3f62b572848b86b8f43c/test/captures/mysql/mariadb114.pcapng.gz"
+sha256 = "4635e087eb1e11e19d80a05357497594017b93e2f0dc70dc4ce9060d606cb20b"
+size = 1754
+license = "GPL-2.0-or-later (Wireshark repository test files)"
+plugins = ["mysql"]
+notes = "MariaDB 11.4 session"
+
+[[capture]]
+name = "wireshark-test/captures/tns_all8_nosql.pcap"
+url = "https://gitlab.com/wireshark/wireshark/-/raw/1543d27ca60c7ac0d6ba3f62b572848b86b8f43c/test/captures/tns_all8_nosql.pcap"
+sha256 = "f52f48434710594f82049ea8f08ed22ef55730fdb052e4162f99710c65fb4e68"
+size = 301
+license = "GPL-2.0-or-later (Wireshark repository test files)"
+plugins = ["oracle"]
+
+[[capture]]
+name = "wireshark-test/captures/kerberos-gssapi-extensions.pcap"
+url = "https://gitlab.com/wireshark/wireshark/-/raw/1543d27ca60c7ac0d6ba3f62b572848b86b8f43c/test/captures/kerberos-gssapi-extensions.pcap"
+sha256 = "c3939654d105f3e782762d8368c3a5bcc46aa3ca45bf5b653ae2c20b6d795cc0"
+size = 771
+license = "GPL-2.0-or-later (Wireshark repository test files)"
+plugins = ["kerberos"]
+
+[[capture]]
+name = "wireshark-test/captures/krb-816.pcap.gz"
+url = "https://gitlab.com/wireshark/wireshark/-/raw/1543d27ca60c7ac0d6ba3f62b572848b86b8f43c/test/captures/krb-816.pcap.gz"
+sha256 = "6f8a333f49fbce316a3dc332d65c0b9606c759b4993fe8691596a596a29b3aa0"
+size = 21013
+license = "GPL-2.0-or-later (Wireshark repository test files)"
+plugins = ["kerberos"]

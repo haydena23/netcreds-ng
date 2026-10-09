@@ -90,6 +90,7 @@ Consumers of JSON output can apply the same rule.
 | `unauthenticated-bind` | ldap | LDAP bind with a DN and no password |
 | `cleartext-password` | mysql, postgres, mssql, tacacs | the protocol's cleartext-password method |
 | `empty-password` | mysql, mssql | the login used an empty password |
+| `change-user` | mysql | a `COM_CHANGE_USER` re-authentication on an open connection |
 | `no-authentication` | postgres, vnc | login without any authentication |
 | `password-change` | mssql | the LOGIN7 also carried a new password |
 | `new-password` | tacacs | a new password in a password change |
@@ -137,6 +138,12 @@ Two findings are duplicates when these match: `protocol`, `kind`, source IP, des
 | `ip_fragments_expired`, `ip_fragment_duplicates` | incomplete datagrams dropped; late duplicate fragments |
 | `tcp_gaps`, `tcp_gap_bytes` | holes in TCP streams and their size |
 | `tcp_retransmitted_bytes` | duplicate bytes discarded |
+| `tcp_data_segments`, `tcp_payload_bytes` | TCP segments carrying data, and their payload bytes |
+| `tcp_duplicate_segments` | data segments captured twice within 10 ms (a SPAN port copying both ways) |
+| `tcp_one_sided_flows` | connections where only one direction was captured, although it shows the other answered |
+| `tcp_unanswered_syn_flows` | connection attempts (bare SYNs) that nobody answered |
+| `tcp_no_handshake_flows` | connections picked up mid-stream (no SYN seen) |
+| `dropped_packets` | live capture: packets lost because analysis fell behind |
 | `evicted_flows` | connections closed because the flow table was full |
 | `ambiguous_flows`, `orientation_resolved` | connections with unknown client/server roles; plugin orientations settled by a finding |
 | `tls_sessions`, `tls_decrypted`, `tls_no_key`, `tls_unsupported`, `tls_failed` | TLS sessions with a key log loaded |

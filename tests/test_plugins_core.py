@@ -214,3 +214,33 @@ def test_keyvalue_generic_cleartext():
     c.client(b"hello\nlogin user=kvuser pass=Kv-Fake-Pass\n").close()
     (cred,) = [x for x in analyze(c.frames, enrichers=[]) if x.kind is Kind.CREDENTIAL]
     assert (cred.protocol, cred.username, cred.secret, cred.confidence) == ("Cleartext", "kvuser", "Kv-Fake-Pass", 0.5)
+
+
+@pytest.mark.parametrize(
+    "code,verdict",
+    [
+        (1, "login failed: account expired"),
+        (18, "login failed: account disabled or locked out"),
+        (23, "login failed: password expired"),
+    ],
+)
+def test_kerberos_account_state_errors_are_failures(code, verdict):
+    # Seen in real traffic (zeek krb/kinit.pcap): KDC_ERR_NAME_EXP, KDC_ERR_CLIENT_REVOKED, KDC_ERR_KEY_EXPIRED.
+    from netcreds_ng.testing.packets import udp_frame
+    from netcreds_ng.testing.protocols import as_req, krb_error
+
+    frames = [udp_frame(C, 51000, S, 88, as_req("fakeuser", "EXAMPLE.TEST", preauth_etype=18)),
+              udp_frame(S, 88, C, 51000, krb_error(code, "EXAMPLE.TEST", "fakeuser"))]  # fmt: skip
+    f = analyze(frames)
+    (result,) = [x for x in f if x.kind is Kind.AUTH_RESULT]
+    assert (result.username, result.domain, result.value, result.outcome) == ("fakeuser", "EXAMPLE.TEST", verdict, "failure")
+    assert result.extra["error_code"] == code
+
+
+def test_kerberos_other_errors_are_not_login_results():
+    from netcreds_ng.testing.packets import udp_frame
+    from netcreds_ng.testing.protocols import as_req, krb_error
+
+    frames = [udp_frame(C, 51000, S, 88, as_req("fakeuser", "EXAMPLE.TEST", preauth_etype=18)),
+              udp_frame(S, 88, C, 51000, krb_error(14, "EXAMPLE.TEST", "fakeuser"))]  # fmt: skip
+    assert [x for x in analyze(frames) if x.kind is Kind.AUTH_RESULT] == []

@@ -233,3 +233,107 @@ def test_client_before_server_handshake_detaches():
     c = conv()
     c.client(response(FULL, b"lee", b"x\x00", plugin=b"mysql_clear_password")).server(server_hello())
     assert run(c) == []
+
+
+# --- COM_CHANGE_USER (found in real captures: zeek mysql/change-user-*.pcap) ---------------
+
+
+def change_user(user: bytes, auth: bytes, db: bytes = b"appdb", plugin: bytes = b"mysql_native_password") -> bytes:
+    body = b"\x11" + user + b"\x00" + bytes([len(auth)]) + auth + db + b"\x00" + struct.pack("<H", 0x2D) + plugin + b"\x00"
+    return pkt(0, body)
+
+
+QUERY = pkt(0, b"\x03SELECT 1")
+RESULT = pkt(1, b"\x01") + pkt(2, b"\x03def\x00\x00\x00\x011\x00\x0c\x3f\x00\x01\x00\x00\x00\x08\x81\x00\x00\x00\x00") + pkt(3, b"\x011")
+
+
+def test_change_user_after_login_is_reported():
+    c = conv()
+    c.server(server_hello()).client(response(FULL, b"alice", SCRAMBLE)).server(OK)
+    c.client(QUERY).server(RESULT)
+    c.client(change_user(b"bob", SCRAMBLE)).server(pkt(1, b"\x00\x00\x00\x02\x00\x00\x00"))
+    first, first_ok, event, result = run(c)
+    assert (first.username, first_ok.value) == ("alice", "login succeeded")
+    assert event.kind is Kind.AUTH_EVENT and event.username == "bob"
+    assert event.value == "MySQL change user (mysql_native_password)"
+    assert event.tags == ["change-user"] and event.extra["database"] == "appdb"
+    assert result.kind is Kind.AUTH_RESULT and (result.username, result.value) == ("bob", "login succeeded")
+    assert_no_digest(event)
+
+
+def test_change_user_failure_and_empty_password():
+    c = conv()
+    c.server(server_hello()).client(response(FULL, b"alice", SCRAMBLE)).server(OK)
+    c.client(change_user(b"root2", b"")).server(pkt(1, ERR[4:]))
+    _, _, event, result = run(c)
+    assert (event.username, event.risk, event.tags) == ("root2", "high", ["empty-password", "change-user"])
+    assert (result.username, result.value) == ("root2", "login failed")
+
+
+def test_change_user_switch_to_clear_password():
+    c = conv()
+    c.server(server_hello()).client(response(FULL, b"alice", SCRAMBLE)).server(OK)
+    c.client(change_user(b"carol", SCRAMBLE)).server(pkt(1, b"\xfemysql_clear_password\x00"))
+    c.client(pkt(2, b"Fake-Change-Pw\x00")).server(pkt(3, b"\x00\x00\x00\x02\x00\x00\x00"))
+    findings = run(c)
+    cred = next(f for f in findings if f.kind is Kind.CREDENTIAL)
+    assert (cred.username, cred.secret) == ("carol", "Fake-Change-Pw")
+
+
+def test_load_data_contents_starting_with_0x11_are_not_a_change_user():
+    # Protocol review F1: LOAD DATA LOCAL file contents are client packets with sequence id >= 2.
+    c = conv()
+    c.server(server_hello()).client(response(FULL, b"alice", SCRAMBLE)).server(OK)
+    c.client(pkt(0, b"\x03LOAD DATA LOCAL INFILE 'x' INTO TABLE t")).server(pkt(1, b"\xfbx"))
+    c.client(pkt(2, b"\x11eve\x00\x04abcdappdb\x00")).client(pkt(3, b""))
+    c.server(pkt(4, b"\x00\x01\x00\x02\x00\x00\x00"))
+    assert [f.username for f in run(c)] == ["alice", "alice"]
+
+
+def test_compressed_protocol_stops_after_login():
+    # Protocol review F2: CLIENT_COMPRESS changes the framing after the login.
+    c = conv()
+    c.server(server_hello()).client(response(FULL | 0x20, b"alice", SCRAMBLE)).server(OK)
+    c.client(change_user(b"bob", SCRAMBLE))
+    assert [f.username for f in run(c)] == ["alice", "alice"]
+
+
+def test_change_user_without_plugin_name_is_never_cleartext():
+    # Protocol review F4: inherit the login's plugin for the label, but never report the bytes as a password.
+    c = conv()
+    c.server(server_hello()).client(response(FULL, b"alice", b"Fake-Login-Pw\x00", plugin=b"mysql_clear_password"))
+    c.server(OK)
+    body = b"\x11" + b"bob\x00" + bytes([len(SCRAMBLE)]) + SCRAMBLE + b"appdb\x00"
+    c.client(pkt(0, body))
+    findings = run(c)
+    assert [f.kind for f in findings if f.username == "bob"] == [Kind.AUTH_EVENT]
+    assert all(f.secret is None for f in findings if f.username == "bob")
+
+
+def test_large_query_does_not_stop_change_user_detection():
+    # Protocol review F3: packets over 64 KiB in the command phase are skipped, not a reason to stop.
+    c = conv()
+    c.server(server_hello()).client(response(FULL, b"alice", SCRAMBLE)).server(OK)
+    c.client(pkt(0, b"\x03INSERT INTO t VALUES ('" + b"A" * 70_000 + b"')"), segment=1400)
+    c.server(OK.replace(b"\x02", b"\x01", 1))
+    c.client(change_user(b"bob", SCRAMBLE)).server(pkt(1, b"\x00\x00\x00\x02\x00\x00\x00"))
+    assert [f.username for f in run(c)] == ["alice", "alice", "bob", "bob"]
+
+
+def test_lost_change_user_reply_recovers_on_next_command():
+    # Protocol review F5: without the server's reply, the next command (sequence id 0) resumes the command phase.
+    c = conv()
+    c.server(server_hello()).client(response(FULL, b"alice", SCRAMBLE)).server(OK)
+    c.client(change_user(b"bob", SCRAMBLE))  # reply not captured
+    c.client(QUERY).server(pkt(1, b"\x00" + b"\x00" * 6))  # OK to the query: not a login result
+    c.client(change_user(b"carol", SCRAMBLE)).server(pkt(1, b"\x00\x00\x00\x02\x00\x00\x00"))
+    assert [(f.kind.value, f.username) for f in run(c)][2:] == [
+        ("auth_event", "bob"), ("auth_event", "carol"), ("auth_result", "carol")]
+
+
+def test_queries_after_login_are_not_reported():
+    c = conv()
+    c.server(server_hello()).client(response(FULL, b"alice", SCRAMBLE)).server(OK)
+    for _ in range(3):
+        c.client(QUERY).server(RESULT)
+    assert len(run(c)) == 2

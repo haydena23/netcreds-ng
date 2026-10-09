@@ -49,6 +49,7 @@ netcreds-ng -p cap.pcap --jsonl findings.jsonl     # JSON Lines for a SIEM
 netcreds-ng -p cap.pcap --evidence proof.pcapng    # the packets behind every finding
 netcreds-ng -p cap.pcap --tls-keylog keys.log      # also look inside TLS sessions you hold keys for
 netcreds-ng -p cap.pcap --tui                      # browse results interactively
+netcreds-ng -p cap.pcap -q --summary-json -        # counters and capture health as JSON
 sudo netcreds-ng -i eth0                           # live dashboard
 sudo netcreds-ng -i eth0 --no-tui -f 10.0.0.5      # live, plain output, ignore a host
 netcreds-ng --legacy -p cap.pcap                   # exactly what the original net-creds printed
@@ -66,6 +67,7 @@ Useful options:
 | `--min-risk high` | only show high-risk findings on screen |
 | `--jsonl/--csv/--log/--sqlite/--html/--cef PATH` | outputs; repeat or combine freely; `-` writes to stdout |
 | `--evidence PATH` | pcapng with the packets behind each finding (raw packets, so secrets included) |
+| `--summary-json PATH` | run summary as JSON: counters, capture health, analytics (no secrets) |
 | `--webhook URL` | POST findings (medium risk and up, secrets masked) to an endpoint |
 | `--webhook-format slack\|teams\|discord` | send a chat message instead of the JSON findings |
 | `--syslog udp://host:514` | send findings to a syslog collector as CEF (secrets masked); `tcp://` also works |

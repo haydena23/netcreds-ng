@@ -181,7 +181,7 @@ Plugin `kerberos`. AS-REQ, AS-REP, TGS-REP and KRB-ERROR over UDP and TCP (recor
 | AS-REQ with encrypted-timestamp pre-authentication | `auth_event` "Kerberos pre-authentication (*etype*)" | high for DES, medium for RC4, low for AES | `weak-preauth-<etype>` for DES/RC4; `weak-etype-offered` if the client offers DES/RC4 |
 | AS-REP to a request without pre-authentication | `auth_event` "AS-REP issued without pre-authentication" | high | `no-preauth` |
 | TGS-REP with a DES/RC4 service ticket | `auth_event` "service ticket for *service* issued with *etype*" | per etype | `weak-service-ticket` |
-| KRB-ERROR pre-auth failed, unknown principal, ... | `auth_result` | info | `extra.outcome = "failure"`, `extra.error_code` |
+| KRB-ERROR: pre-authentication failed (24), unknown principal (6), account expired (1), account disabled or locked out (18), password expired (23) | `auth_result` | info | `extra.outcome = "failure"`, `extra.error_code` |
 
 Encryption types: `des-cbc-crc` (1), `des-cbc-md5` (3), `aes128-cts-hmac-sha1-96` (17), `aes256-cts-hmac-sha1-96` (18), `aes128-cts-hmac-sha256-128` (19), `aes256-cts-hmac-sha384-192` (20), `rc4-hmac` (23), `rc4-hmac-exp` (24). DES and `rc4-hmac-exp` are high risk, `rc4-hmac` medium.
 
@@ -216,7 +216,7 @@ StartTLS: a successful StartTLS ends parsing unless TLS is decrypted; a failed o
 
 ## MySQL
 
-Plugin `mysql`. MySQL and MariaDB: server greeting, HandshakeResponse41, AuthSwitch, OK/ERR.
+Plugin `mysql`. MySQL and MariaDB: server greeting, HandshakeResponse41, AuthSwitch, COM_CHANGE_USER, OK/ERR.
 
 | Finding | Kind | Risk | Tags |
 | --- | --- | --- | --- |
@@ -224,9 +224,10 @@ Plugin `mysql`. MySQL and MariaDB: server greeting, HandshakeResponse41, AuthSwi
 | login with an empty auth response | `auth_event` | high | `empty-password` |
 | `mysql_native_password`, `caching_sha2_password`, other plugins | `auth_event` "MySQL login (*plugin*)" | medium | |
 | AuthSwitch to another plugin | a second `auth_event` | | |
+| `COM_CHANGE_USER` on an open connection | `auth_event` "MySQL change user (*plugin*)", then its own result | as for a login | `change-user` |
 | OK / ERR during authentication | `auth_result` | info | `extra.error_code` on failure |
 
-Pre-4.1 logins are reported as events (the wire field is a scramble). TLS (SSL request) ends parsing unless decrypted.
+Pre-4.1 logins are reported as events (the wire field is a scramble). TLS (SSL request) ends parsing unless decrypted. After a successful login the plugin follows the command phase only to catch `COM_CHANGE_USER`: only packets with sequence id 0 are read as commands, so `LOAD DATA` contents and continuation packets are never mistaken for one. Queries are not looked at, and packets over 64 KiB are skipped. A capture gap ends parsing, and so does the compressed protocol (`CLIENT_COMPRESS`), whose framing changes after the login.
 
 ## PostgreSQL
 
@@ -335,7 +336,7 @@ Plugin `rdp`. Only the cleartext start of a connection (MS-RDPBCGR 2.2.1.1–2.2
 | no server confirm; the client offered only standard security | `auth_event` "RDP client offered only standard RDP security (no NLA, no TLS)" | low | `no-nla`, `no-response` |
 | no server confirm, otherwise | `auth_event` "RDP negotiation incomplete (no server response)" | info | `no-response` |
 
-Everything after negotiation is TLS/CredSSP or RDP's own RC4 encryption; the plugin stops there. Load-balancer `msts=` routing tokens are not usernames. NTLM inside CredSSP is visible only with a key log, through `ntlm`.
+Everything after negotiation is TLS/CredSSP or RDP's own RC4 encryption; the plugin stops there. Load-balancer `msts=` routing tokens are not usernames. Clients pad short cookie names with spaces; the padding is removed. NTLM inside CredSSP is visible only with a key log, through `ntlm`.
 
 ## RADIUS
 

@@ -3,7 +3,8 @@
 ```text
 netcreds-ng [-h] [-p PATH] [-i IFACE] [-f HOSTS] [-F FILE] [--bpf EXPR] [-v] [-q] [--tui] [--no-tui] [--mask]
             [--no-browsing] [--min-risk {info,low,medium,high}] [--jsonl PATH] [--csv PATH] [--log PATH] [--sqlite PATH]
-            [--html PATH] [--evidence PATH] [--cef PATH] [--webhook URL] [--webhook-format {generic,slack,teams,discord}]
+            [--html PATH] [--evidence PATH] [--cef PATH] [--summary-json PATH] [--webhook URL]
+            [--webhook-format {generic,slack,teams,discord}]
             [--syslog URL] [-o FORMAT:PATH] [--legacy] [-j N] [--tls-keylog FILE] [--dedup {off,run,persistent}]
             [--dedup-db PATH] [--enable PLUGINS] [--disable PLUGINS] [--option PLUGIN.KEY=VALUE] [--plugin-dir DIR]
             [--config FILE] [--strict] [--strict-heuristics] [--list-plugins] [--list-interfaces] [--debug] [--version]
@@ -74,6 +75,10 @@ Lowest risk shown on the console. Default `info`. Outputs still receive every fi
 | `--cef PATH` | ArcSight CEF lines (appends) | [CEF](outputs.md#cef) |
 
 `-` as PATH writes to standard output for `jsonl`, `csv`, `log` and `cef`. Combine it with `-q` to get clean machine-readable output on stdout.
+
+### `--summary-json PATH`
+
+Writes the run summary as one JSON document at the end of the run: every counter, the [capture health](../guide/analysing-captures.md#capture-health) assessment, and the analytics (hosts, accounts, alerts). It contains no secrets. `-` writes to standard output; add `-q` so the console summary does not mix with the JSON. It is written in plain console mode (`--no-tui`, `-q`, or file analysis without `--tui`), not from the dashboard, and cannot be combined with `--legacy`. Format: [run summary JSON](outputs.md#run-summary-json).
 
 ### `--webhook URL`
 

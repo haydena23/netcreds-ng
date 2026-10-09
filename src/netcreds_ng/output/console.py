@@ -64,6 +64,19 @@ class ConsoleRenderer:
             line.append("  " + " ".join(f"#{t}" for t in f.tags), style="dim cyan")
         self.console.print(line, soft_wrap=True)
 
+    def _health(self, stats: RunStats) -> None:
+        from netcreds_ng.health import assess
+
+        health = assess(stats)
+        style = {"good": "green", "degraded": "yellow", "poor": "bold red"}[health["status"]]
+        line = Text.assemble(("Capture health: ", "bold"), (health["status"], style))
+        issues = health["issues"]
+        if issues:
+            line.append(f" - {issues[0]['message']}")
+        self.console.print(line, soft_wrap=True)
+        for issue in issues[1:]:
+            self.console.print(Text(f"  also: {issue['message']}", style="dim"), soft_wrap=True)
+
     def summary(self, stats: RunStats, analytics: dict[str, Any] | None = None, errors: list[str] | None = None) -> None:
         if self.quiet:
             return
@@ -88,6 +101,7 @@ class ConsoleRenderer:
         if stats.truncated_frames or stats.undecodable:
             t.add_row("Truncated frames", f"{stats.truncated_frames:,}", "Non-IP/undecodable", f"{stats.undecodable:,}")
         c.print(t)
+        self._health(stats)
         if stats.by_protocol:
             pt = Table(title="Findings by protocol", title_justify="left")
             pt.add_column("Protocol")

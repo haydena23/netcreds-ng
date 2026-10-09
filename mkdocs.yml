@@ -163,6 +163,7 @@ nav:
   - Development:
       - development/index.md
       - Parity testing: development/parity.md
+      - Real-traffic validation: development/real-traffic.md
   - About:
       - about/index.md
       - Changelog: about/changelog.md

@@ -26,6 +26,9 @@ PA_ENC_TIMESTAMP = 2
 ERR_PREAUTH_FAILED = 24
 ERR_PREAUTH_REQUIRED = 25
 ERR_C_PRINCIPAL_UNKNOWN = 6
+ERR_NAME_EXP = 1  # client's entry expired (RFC 4120 7.5.9)
+ERR_CLIENT_REVOKED = 18  # credentials revoked: account disabled or locked out
+ERR_KEY_EXPIRED = 23  # password expired
 
 
 def etype_name(e: int) -> str:
@@ -191,7 +194,10 @@ class KerberosPlugin(ProtocolPlugin):
             st.pending_no_preauth.pop(f"{cname}@{realm}", None)
             return
         verdict = {ERR_PREAUTH_FAILED: "pre-authentication failed (wrong password)",
-                   ERR_C_PRINCIPAL_UNKNOWN: "unknown principal"}.get(code or -1)  # fmt: skip
+                   ERR_C_PRINCIPAL_UNKNOWN: "unknown principal",
+                   ERR_NAME_EXP: "login failed: account expired",
+                   ERR_CLIENT_REVOKED: "login failed: account disabled or locked out",
+                   ERR_KEY_EXPIRED: "login failed: password expired"}.get(code or -1)  # fmt: skip
         if verdict:
             self._emit(ctx, direction, Kind.AUTH_RESULT, reverse=True, username=cname, domain=realm, value=verdict,
                        extra={"error_code": code, "outcome": "failure"})  # fmt: skip

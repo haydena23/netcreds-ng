@@ -88,6 +88,14 @@ python tools/bench.py --pcap a.pcap --pcap b.pcap --jobs 2
 
 The generated capture mixes credential-bearing protocols with bulk binary and HTTP traffic. Run it before and after engine or plugin changes to catch throughput regressions.
 
+## Real-traffic validation
+
+```bash
+python tools/corpus.py fetch && python tools/corpus.py run
+```
+
+Runs every plugin over public sample captures and compares the results with tshark. See [Real-traffic validation](real-traffic.md).
+
 ## Adding a protocol
 
 See [Adding a built-in plugin](../plugins/protocol-plugins.md#adding-a-built-in-plugin).

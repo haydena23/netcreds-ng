@@ -199,3 +199,11 @@ def test_bare_request_without_reply_off_port_is_silent_and_low_on_port():
     on.client(connection_request())
     (event,) = run(on)
     assert event.risk == "low" and "no-response" in event.tags
+
+
+def test_cookie_padding_is_stripped():
+    # Real clients pad short names: "Cookie: mstshash=JOHN-PC  " (zeek rdp/rdp-x509.pcap).
+    c = conv()
+    c.client(connection_request(b"FAKE-PC  ", PROTOCOL_SSL)).server(connection_confirm(PROTOCOL_SSL))
+    user = by_kind(run(c), Kind.USERNAME)[0]
+    assert user.username == "FAKE-PC"
