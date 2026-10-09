@@ -331,16 +331,18 @@ def _write_summary_json(args: argparse.Namespace, session: Any) -> bool:
 
 
 def _run_live(args: argparse.Namespace, registry: Any, scfg: Any, mask: bool, hosts: list[str]) -> int:
-    from netcreds_ng.engine.sources import LiveCapture, bpf_exclude, default_interface
+    from netcreds_ng.engine.sources import LiveCapture, bpf_exclude, capture_permission_problem, default_interface
     from netcreds_ng.output.console import ConsoleRenderer
     from netcreds_ng.session import Session
 
-    if not is_admin():
-        print("[ERROR] live capture needs root/administrator privileges", file=sys.stderr)
+    problem = capture_permission_problem()
+    if problem:
+        print(f"[ERROR] {problem}", file=sys.stderr)
         return EXIT_ERROR
     iface = args.interface or default_interface()
     if not iface:
-        print("[ERROR] could not find an active interface; specify one with -i", file=sys.stderr)
+        print("[ERROR] could not find an active interface; specify one with -i (see --list-interfaces),"
+              " or analyse a capture file with -p", file=sys.stderr)  # fmt: skip
         return EXIT_ERROR
     bpf = bpf_exclude(hosts, args.bpf)
     use_tui = args.tui if args.tui is not None else (sys.stdout.isatty() and not args.quiet)

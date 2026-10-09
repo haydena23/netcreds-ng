@@ -22,7 +22,7 @@ A capture file (pcap or pcapng) or a directory. Repeatable. Directories contribu
 
 ### `-i`, `--interface IFACE`
 
-Live capture interface. Without `-p` and without `-i`, the interface carrying the default route is used. Needs root/administrator. See [Live capture](../guide/live-capture.md).
+Live capture interface. Without `-p` and without `-i`, the interface carrying the default route is used; if that cannot be determined, the first active interface with a routable IPv4 address (physical adapters first). Needs permission to capture: root or `CAP_NET_RAW` on Linux/macOS; on Windows only if Npcap is set to "administrators only". See [Live capture](../guide/live-capture.md).
 
 ### `-f`, `--filterip`, `--filter HOSTS`
 

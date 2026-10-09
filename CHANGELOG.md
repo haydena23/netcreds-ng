@@ -4,6 +4,16 @@
 
 Complete rewrite as a next-generation, defensive credential-exposure auditing tool. The original net-creds behaviour is the parity floor, verified by tests against output recorded from the original Python 2 tool.
 
+### Live capture start-up
+
+- Typing just `netcreds-ng` now finds the default interface. scapy's routing table was never loaded, so the interface was always unknown and the run stopped with "could not find an active interface". If scapy cannot tell, netcreds-ng picks the first active interface with a routable IPv4 address, preferring physical adapters.
+- The blanket root/administrator check is replaced by a check of what capture really needs:
+  - on Windows, Npcap must be installed, and Administrator rights are needed only when Npcap is set to "administrators only";
+  - on Linux, root or `CAP_NET_RAW`;
+  - on macOS, access to `/dev/bpf*`.
+
+  The error says what is missing. `--legacy` keeps the original's root check.
+
 ### Real-traffic validation and capture health (M13)
 
 - **Capture health.** The run summary ends with a verdict on how much of the traffic the capture saw (`good`, `degraded`, `poor`). It covers:

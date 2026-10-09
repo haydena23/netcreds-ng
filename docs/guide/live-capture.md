@@ -12,13 +12,20 @@ netcreds-ng can watch a network interface and report findings as they happen.
 
 ## Requirements
 
-- Root on Linux/macOS, an elevated terminal on Windows. netcreds-ng checks this first and exits with `[ERROR] live capture needs root/administrator privileges` otherwise.
 - A capture driver: Npcap on Windows, libpcap elsewhere. Capture goes through scapy's sniffer.
+- Permission to capture, which netcreds-ng checks before it starts:
+  - **Windows:** none beyond Npcap's own setting. A standard Npcap install lets any user capture; if Npcap was installed with "Restrict Npcap driver's access to Administrators only", run from an Administrator terminal.
+  - **Linux:** root, or the `CAP_NET_RAW` capability.
+  - **macOS:** root, or read access to `/dev/bpf*` (Wireshark's ChmodBPF).
+
+  When something is missing, the error says what (for example `[ERROR] live capture needs Npcap: install it from https://npcap.com and try again`).
 
 ## Starting a capture
 
+Typing just `netcreds-ng` starts a live capture on the interface carrying the default route, and opens the dashboard when run in a terminal. If netcreds-ng cannot tell which interface that is, it picks the first active interface with a routable IPv4 address, preferring physical adapters over virtual switches and VPNs.
+
 ```bash
-sudo netcreds-ng                       # auto-detect the interface carrying the default route
+netcreds-ng                            # auto-detect the interface (Linux/macOS: sudo netcreds-ng)
 sudo netcreds-ng -i eth0               # a specific interface
 netcreds-ng --list-interfaces          # see what is available (no privileges needed)
 ```

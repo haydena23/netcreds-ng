@@ -3,7 +3,7 @@
 ## Requirements
 
 - **Python 3.11 or newer.** CI covers 3.11 to 3.14 on Linux, Windows and macOS.
-- **For live capture only:** a packet-capture driver and administrator rights. Reading capture files needs neither.
+- **For live capture only:** a packet-capture driver (Npcap on Windows) and permission to capture: root or `CAP_NET_RAW` on Linux and macOS; on Windows only if Npcap is set to "administrators only". Reading capture files needs neither.
 
   | Platform | Driver |
   | --- | --- |
@@ -101,11 +101,12 @@ python -m netcreds_ng --version
 
 === "Windows"
 
-    Install [Npcap](https://npcap.com/), then run from an elevated (administrator) terminal:
+    Install [Npcap](https://npcap.com/). A standard install lets any user capture; if you chose "administrators only", run from an Administrator terminal:
 
     ```powershell
+    netcreds-ng                      # capture on the default interface
     netcreds-ng --list-interfaces
-    netcreds-ng -i "Ethernet"
+    netcreds-ng -i "Wi-Fi"
     ```
 
-netcreds-ng checks for administrator rights before it starts a live capture and exits with an error if it does not have them. See [Live capture](../guide/live-capture.md).
+netcreds-ng checks that it can capture before it starts, and the error message says what is missing. See [Live capture](../guide/live-capture.md).

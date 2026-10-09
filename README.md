@@ -37,7 +37,7 @@ pip install ".[dev]"   # plus test/lint tools
 
 All dependencies are pure Python or ship prebuilt wheels: `rich`, `textual`, `scapy`, `psutil`, plus `cryptography` for `[tls]`. No compiler is needed.
 
-Live capture needs a packet-capture driver: **Npcap** on Windows, libpcap (usually preinstalled) on Linux/macOS. It also needs root/administrator rights. Reading capture files needs neither. Live capture is **beta** in 2.0.0: it has not yet been validated on a real network, so for audits, capture to a file and analyse it with `-p`.
+Live capture needs a packet-capture driver: **Npcap** on Windows, libpcap (usually preinstalled) on Linux/macOS. It also needs permission to capture: root (or `CAP_NET_RAW`) on Linux/macOS; on Windows a standard Npcap install lets any user capture. Typing just `netcreds-ng` captures on the default interface. Reading capture files needs neither. Live capture is **beta** in 2.0.0: it has not yet been validated on a real network, so for audits, capture to a file and analyse it with `-p`.
 
 ## Usage
 
