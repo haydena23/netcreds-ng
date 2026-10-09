@@ -14,7 +14,7 @@ from netcreds_ng.engine.pcapio import RawFrame, open_capture
 
 log = logging.getLogger(__name__)
 
-CAPTURE_SUFFIXES = (".pcap", ".pcapng", ".cap", ".dmp", ".pcap.gz")
+CAPTURE_SUFFIXES = (".pcap", ".pcapng", ".cap", ".dmp", ".pcap.gz", ".pcapng.gz")
 
 
 def expand_capture_paths(paths: list[str]) -> list[str]:

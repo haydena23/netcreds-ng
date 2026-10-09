@@ -6,6 +6,10 @@ netcreds-ng can watch a network interface and report findings as they happen.
 
     Capture only on networks you are authorised to monitor. Live findings contain real credentials.
 
+!!! note "Beta in 2.0.0"
+
+    Live capture is a **beta** feature in 2.0.0. Protocol detection is the same code that is tested on capture files, but the live path (interface selection, BPF filters, the dashboard in live mode, dropped-packet accounting, stopping with Ctrl+C, re-reading a TLS key log while it grows) has not yet been validated on a real network. For audits, the most reliable workflow is to capture with tcpdump, dumpcap or Wireshark and analyse the file with `-p`. Please report problems you find.
+
 ## Requirements
 
 - Root on Linux/macOS, an elevated terminal on Windows. netcreds-ng checks this first and exits with `[ERROR] live capture needs root/administrator privileges` otherwise.

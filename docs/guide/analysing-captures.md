@@ -13,8 +13,8 @@ netcreds-ng -p site-a/ -p site-b/core.pcap       # several sources, in the order
 ```
 
 - **Formats.** pcap (microsecond and nanosecond, either byte order) and pcapng (several interfaces, any timestamp resolution, mixed link types). netcreds-ng reads them natively, without scapy.
-- **Directories** contribute the files whose names end in `.pcap`, `.pcapng`, `.cap` or `.dmp`, sorted by name. Subdirectories are not searched.
-- **Compressed captures are not read.** A `.pcap.gz` file in a directory is picked up but then reported as "not a pcap or pcapng file". Decompress it first.
+- **Compressed captures.** gzip-compressed pcap and pcapng files are read directly. Compression is detected from the file content, not the name. A truncated `.gz` file is reported like a truncated capture, after its complete frames have been analysed.
+- **Directories** contribute the files whose names end in `.pcap`, `.pcapng`, `.cap`, `.dmp`, `.pcap.gz` or `.pcapng.gz`, sorted by name. Subdirectories are not searched.
 - **Link types.** Ethernet (with 802.1Q/QinQ VLAN tags and PPPoE), Linux cooked capture (SLL and SLL2), BSD loopback/null, and raw IPv4/IPv6. Frames of other link types are counted as *non-IP/undecodable*.
 
 ### Rotated captures

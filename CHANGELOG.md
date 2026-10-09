@@ -4,6 +4,12 @@
 
 Complete rewrite as a next-generation, defensive credential-exposure auditing tool. The original net-creds behaviour is the parity floor, verified by tests against output recorded from the original Python 2 tool.
 
+### Release preparation (M6)
+
+- Live capture is marked **beta** for 2.0.0: it has not been validated on a real network yet. Capture-file analysis is the supported workflow.
+- gzip-compressed `.pcap.gz` / `.pcapng.gz` captures are read directly (detected by content). Previously they were picked up from directories and then rejected (E-16).
+- An unknown plugin name in `--enable`/`--disable` or the config file is now a usage error (exit 2) instead of a `KeyError` traceback (E-15).
+
 ### Added in round 2 (milestones M7–M12, engine fixes E-1..E-7)
 
 - **Engine**

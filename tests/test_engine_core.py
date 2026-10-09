@@ -2,13 +2,17 @@
 
 from __future__ import annotations
 
+import gzip
+import os
 import struct
+from pathlib import Path
 
 import pytest
 
 from netcreds_ng.engine.decode import PROTO_TCP, PROTO_UDP, decode_frame, decode_ip
 from netcreds_ng.engine.ipfrag import Defragmenter
 from netcreds_ng.engine.pcapio import CaptureFormatError, PcapWriter, RawFrame, open_capture
+from netcreds_ng.engine.sources import expand_capture_paths
 from netcreds_ng.engine.tcp import TCPStream, seq_delta
 from netcreds_ng.testing.packets import TCPConversation, frame_for, ip_packet, ipv4, ipv6, tcp, udp, write_pcap
 
@@ -95,6 +99,33 @@ def test_truncated_file_yields_complete_frames_then_errors(tmp_path):
         for f in open_capture(str(p)):
             got.append(f)
     assert len(got) == 1
+
+
+def test_gzip_compressed_capture(tmp_path):
+    p = tmp_path / "a.pcap"
+    write_pcap(str(p), [_frame(b"one"), _frame(b"two")])
+    gz = tmp_path / "a.pcap.gz"
+    gz.write_bytes(gzip.compress(p.read_bytes()))
+    frames = list(open_capture(str(gz)))
+    assert [decode_frame(f).payload for f in frames] == [b"one", b"two"]
+
+
+def test_truncated_gzip_yields_complete_frames_then_errors(tmp_path):
+    p = tmp_path / "a.pcap"
+    write_pcap(str(p), [_frame(b"a" * 4000), _frame(os.urandom(4000))])
+    gz = tmp_path / "a.pcap.gz"
+    gz.write_bytes(gzip.compress(p.read_bytes())[:-1000])
+    got = []
+    with pytest.raises(CaptureFormatError):
+        for f in open_capture(str(gz)):
+            got.append(f)
+    assert len(got) == 1
+
+
+def test_directory_expansion_includes_compressed(tmp_path):
+    for name in ("a.pcap", "b.pcapng.gz", "c.pcap.gz", "notes.txt"):
+        (tmp_path / name).write_bytes(b"")
+    assert [Path(p).name for p in expand_capture_paths([str(tmp_path)])] == ["a.pcap", "b.pcapng.gz", "c.pcap.gz"]
 
 
 def test_header_only_pcap_is_empty(tmp_path):

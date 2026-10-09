@@ -43,7 +43,7 @@ def build_parser() -> argparse.ArgumentParser:
     src = p.add_argument_group("sources")
     src.add_argument("-p", "--pcap", action="append", metavar="PATH",
                      help="capture file or directory (pcap/pcapng); repeatable")  # fmt: skip
-    src.add_argument("-i", "--interface", metavar="IFACE", help="live capture interface (default: auto-detect)")
+    src.add_argument("-i", "--interface", metavar="IFACE", help="live capture interface (default: auto-detect); live capture is beta")
     src.add_argument("-f", "--filterip", "--filter", dest="filter", metavar="HOSTS",
                      help="ignore traffic to/from these hosts (comma separated)")  # fmt: skip
     src.add_argument("-F", "--filterfile", metavar="FILE", help="file with hosts to ignore, one per line")
@@ -212,6 +212,9 @@ def _dispatch(parser: argparse.ArgumentParser, args: argparse.Namespace) -> int:
 
     enable = _csv(args.enable) + list(plugin_cfg.get("enable", []))
     disable = _csv(args.disable) + list(plugin_cfg.get("disable", []))
+    unknown = sorted(set(enable + disable) - set(registry.plugins) - {"all"})
+    if unknown:
+        parser.error(f"unknown plugin(s): {', '.join(unknown)} (see --list-plugins)")
     if args.strict_heuristics and "keyvalue" in registry.plugins:
         disable.append("keyvalue")
     mask = args.mask or bool(out_cfg.get("mask", False))

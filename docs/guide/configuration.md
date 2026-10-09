@@ -120,11 +120,7 @@ netcreds-ng -p cap.pcap --disable keyvalue,secrets      # comma separated, repea
 netcreds-ng -p cap.pcap --enable all                    # also enable opt-in plugins
 ```
 
-Plugins are selected by name across all kinds, so `--disable detection` turns off the behavioural alerts and `--disable analytics` turns off weak-password and reuse analysis.
-
-!!! note
-
-    In this version an unknown name in `--enable` or `--disable` stops the run with a Python `KeyError` traceback (`unknown plugin(s): ...`) instead of a usage message. Check the spelling against `--list-plugins`.
+Plugins are selected by name across all kinds, so `--disable detection` turns off the behavioural alerts and `--disable analytics` turns off weak-password and reuse analysis. An unknown name, on the command line or in the config file, is a usage error (exit code 2) that names it: `unknown plugin(s): ... (see --list-plugins)`.
 
 ## Plugin directories
 

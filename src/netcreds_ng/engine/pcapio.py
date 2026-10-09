@@ -8,15 +8,18 @@ complete frame, so callers can report the problem without losing data.
 
 from __future__ import annotations
 
+import gzip
 import struct
+import zlib
 from collections.abc import Iterator
 from dataclasses import dataclass
-from typing import BinaryIO
+from typing import BinaryIO, cast
 
 PCAP_MAGIC_US = 0xA1B2C3D4
 PCAP_MAGIC_NS = 0xA1B23C4D
 PCAPNG_SHB = 0x0A0D0D0A
 PCAPNG_BOM = 0x1A2B3C4D
+GZIP_MAGIC = b"\x1f\x8b"
 
 MAX_FRAME = 256 * 1024 * 1024  # sanity bound for corrupt length fields
 
@@ -35,22 +38,36 @@ class RawFrame:
 
 
 def open_capture(path: str) -> Iterator[RawFrame]:
-    """Iterate frames of a pcap or pcapng file."""
-    with open(path, "rb") as fh:
-        head = fh.read(4)
-        if len(head) == 0:
-            raise CaptureFormatError("empty file")
-        if len(head) < 4:
-            raise CaptureFormatError("file too short to be a capture")
-        fh.seek(0)
-        (magic_le,) = struct.unpack("<I", head)
-        (magic_be,) = struct.unpack(">I", head)
-        if magic_le == PCAPNG_SHB:
-            yield from _read_pcapng(fh)
-        elif PCAP_MAGIC_US in (magic_le, magic_be) or PCAP_MAGIC_NS in (magic_le, magic_be):
-            yield from _read_pcap(fh)
+    """Iterate frames of a pcap or pcapng file, gzip-compressed or not (detected by content)."""
+    with open(path, "rb") as raw:
+        if raw.read(2) == GZIP_MAGIC:
+            raw.seek(0)
+            with gzip.GzipFile(fileobj=raw, mode="rb") as gz:
+                try:
+                    yield from _read_any(cast(BinaryIO, gz))
+                except (EOFError, OSError, zlib.error) as exc:
+                    # Truncated or corrupt compressed stream: frames before it were yielded.
+                    raise CaptureFormatError(f"corrupt gzip stream: {exc}") from exc
         else:
-            raise CaptureFormatError("not a pcap or pcapng file")
+            raw.seek(0)
+            yield from _read_any(raw)
+
+
+def _read_any(fh: BinaryIO) -> Iterator[RawFrame]:
+    head = fh.read(4)
+    if len(head) == 0:
+        raise CaptureFormatError("empty file")
+    if len(head) < 4:
+        raise CaptureFormatError("file too short to be a capture")
+    fh.seek(0)
+    (magic_le,) = struct.unpack("<I", head)
+    (magic_be,) = struct.unpack(">I", head)
+    if magic_le == PCAPNG_SHB:
+        yield from _read_pcapng(fh)
+    elif PCAP_MAGIC_US in (magic_le, magic_be) or PCAP_MAGIC_NS in (magic_le, magic_be):
+        yield from _read_pcap(fh)
+    else:
+        raise CaptureFormatError("not a pcap or pcapng file")
 
 
 def _read_pcap(fh: BinaryIO) -> Iterator[RawFrame]:

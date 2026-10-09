@@ -110,6 +110,16 @@ def test_disable_and_unknown_plugin(capsys):
         main(["-p", FTP, "--no-tui", "-o", "nosuchformat:x"])
 
 
+@pytest.mark.parametrize("flag", ["--enable", "--disable"])
+def test_unknown_plugin_name_is_usage_error(capsys, flag):
+    with pytest.raises(SystemExit) as exc:
+        main(["-p", FTP, "--no-tui", flag, "ftp,nosuchplugin"])
+    assert exc.value.code == 2
+    err = capsys.readouterr().err
+    assert "unknown plugin(s): nosuchplugin" in err
+    assert "Traceback" not in err
+
+
 def test_list_plugins(capsys):
     assert main(["--list-plugins"]) == EXIT_OK
     out = capsys.readouterr().out
