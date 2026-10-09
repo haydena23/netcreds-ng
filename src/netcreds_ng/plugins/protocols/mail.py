@@ -3,7 +3,7 @@
 Covers SMTP/POP3 ``AUTH PLAIN|LOGIN|CRAM-MD5|NTLM|XOAUTH2`` (with initial
 responses and continuations), POP3 ``USER/PASS`` and ``APOP``, IMAP ``LOGIN``
 (quoted strings, atoms and literals) and ``AUTHENTICATE``, login results, and
-STARTTLS (parsing stops once the session is encrypted).
+STARTTLS (parsing stops once the session is encrypted, unless the engine decrypts TLS with a key log).
 """
 
 from __future__ import annotations
@@ -148,7 +148,12 @@ class MailPlugin(ProtocolPlugin):
                 st.proto, st.mail_seen = "SMTP", True
         if st.tls_pending:
             if line.startswith((b"220", b"+OK")) or (st.result_tag and line.startswith(st.result_tag + b" OK")):
-                ctx.detach()  # session switches to TLS
+                if not ctx.tls_decryption:
+                    ctx.detach()  # session switches to TLS
+                    return
+                st.tls_pending = False  # decrypted plaintext follows: keep parsing
+                for buf in st.lines:
+                    buf.reset()
                 return
             if not line.startswith(b"250"):
                 st.tls_pending = False

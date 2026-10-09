@@ -57,7 +57,8 @@ class AnalyticsEnricher(EnricherPlugin):
 
     def enrich(self, finding: Finding) -> Iterator[Finding]:
         tags = finding.tags
-        if finding.protocol in CLEARTEXT_PROTOCOLS and finding.kind.is_secret and "cleartext" not in tags:
+        encrypted = "tls-decrypted" in tags  # only visible thanks to a key log: not cleartext on the wire
+        if finding.protocol in CLEARTEXT_PROTOCOLS and finding.kind.is_secret and "cleartext" not in tags and not encrypted:
             tags.append("cleartext")
         if finding.kind in (Kind.CREDENTIAL, Kind.PASSWORD) and finding.secret:
             secret = finding.secret
@@ -82,7 +83,7 @@ class AnalyticsEnricher(EnricherPlugin):
         return iter(())
 
     def _profile(self, f: Finding) -> None:
-        if f.kind in (Kind.URL, Kind.SEARCH, Kind.POST, Kind.INFO):
+        if f.kind in (Kind.URL, Kind.SEARCH, Kind.POST, Kind.INFO, Kind.ALERT):
             return
         self.risk_counts[f.risk] += 1
         client = self.hosts.setdefault(f.src.ip, HostProfile(f.src.ip))

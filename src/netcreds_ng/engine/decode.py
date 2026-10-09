@@ -35,6 +35,7 @@ PROTO_UDP = 17
 
 # IPv6 extension headers we walk through
 _IPV6_EXT = {0, 43, 60, 51}
+IPV6_EXTENSIONS = frozenset(_IPV6_EXT)
 _IPV6_FRAG = 44
 
 TCP_FIN = 0x01
@@ -78,6 +79,8 @@ class Packet:
     l4_header_len: int = 0
     payload: bytes = b""
     truncated: bool = False
+    #: For a reassembled IP datagram: every frame that carried one of its fragments.
+    fragment_frames: tuple[RawFrame, ...] = ()
 
     @property
     def src(self) -> str:
@@ -153,6 +156,27 @@ def l3_offset(frame: RawFrame) -> tuple[int, int] | None:
     return None
 
 
+def _jumbo_length(data: bytes) -> int | None:
+    """Jumbo Payload length from the hop-by-hop header right after the IPv6 header, if present."""
+    if len(data) < 48:
+        return None
+    end = 40 + (data[41] + 1) * 8
+    pos = 42
+    while pos < min(end, len(data)):
+        opt = data[pos]
+        if opt == 0:  # Pad1
+            pos += 1
+            continue
+        if pos + 2 > len(data):
+            return None
+        olen = data[pos + 1]
+        if opt == 0xC2 and olen == 4 and pos + 6 <= len(data):
+            (length,) = struct.unpack("!I", data[pos + 2 : pos + 6])
+            return length if length > 65535 else None
+        pos += 2 + olen
+    return None
+
+
 def decode_ip(data: bytes) -> IPLayer | None:
     if not data:
         return None
@@ -192,6 +216,11 @@ def decode_ip(data: bytes) -> IPLayer | None:
         (plen,) = struct.unpack("!H", data[4:6])
         nxt = data[6]
         src, dst = _ip6(data[8:24]), _ip6(data[24:40])
+        if plen == 0:
+            # Jumbogram (RFC 2675) carries the length in a hop-by-hop option; TSO/offload
+            # captures may also report 0. Without a jumbo option use the captured length.
+            jumbo = _jumbo_length(data) if nxt == 0 else None
+            plen = jumbo if jumbo is not None else len(data) - 40
         end = 40 + plen
         truncated = end > len(data)
         end = min(end, len(data))
@@ -207,6 +236,10 @@ def decode_ip(data: bytes) -> IPLayer | None:
                 more = bool(fo & 1)
                 nxt = data[off]
                 off += 8
+                if frag_offset or more:
+                    # Headers after the Fragment header are part of the fragmentable data; they are
+                    # walked after reassembly (skip_ipv6_extensions), never per fragment.
+                    break
                 continue
             hdr_len = (data[off + 1] + 2) * 4 if nxt == 51 else (data[off + 1] + 1) * 8
             nxt = data[off]
@@ -215,6 +248,20 @@ def decode_ip(data: bytes) -> IPLayer | None:
             return None
         return IPLayer(6, src, dst, nxt, off, data[off:end], ident, frag_offset, more, truncated)
     return None
+
+
+def skip_ipv6_extensions(nxt: int, data: bytes) -> tuple[int, int] | None:
+    """Walk IPv6 extension headers at the start of ``data``: (upper-layer protocol, its offset)."""
+    off = 0
+    while nxt in _IPV6_EXT:
+        if off + 2 > len(data):
+            return None
+        hdr_len = (data[off + 1] + 2) * 4 if nxt == 51 else (data[off + 1] + 1) * 8
+        nxt = data[off]
+        off += hdr_len
+        if off > len(data):
+            return None
+    return nxt, off
 
 
 def decode_l4(frame: RawFrame, l3off: int, ip: IPLayer, l4: bytes | None = None) -> Packet:

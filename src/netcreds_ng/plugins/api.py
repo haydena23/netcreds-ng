@@ -58,7 +58,7 @@ class FlowInfo:
 class Context:
     """Per-(flow, plugin) handle passed to protocol plugin callbacks."""
 
-    __slots__ = ("_detached", "_emit", "flow", "frame", "options", "state", "timestamp")
+    __slots__ = ("_detached", "_emit", "flow", "frame", "options", "state", "timestamp", "tls_decryption")
 
     def __init__(self, flow: FlowInfo, emit: Any, options: dict[str, Any]) -> None:
         self.flow = flow
@@ -68,6 +68,10 @@ class Context:
         self.timestamp = 0.0
         self.frame = 0
         self.options = options
+        #: True when the engine decrypts TLS with a key log. After STARTTLS (or an SSLRequest) the
+        #: plugin then receives the decrypted plaintext, or nothing, but never ciphertext, so it can
+        #: keep parsing instead of detaching.
+        self.tls_decryption = False
 
     def emit(
         self,

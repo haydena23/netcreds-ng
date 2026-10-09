@@ -199,3 +199,40 @@ class PcapWriter:
             sec, usec = sec + 1, usec - 1_000_000
         self._fh.write(struct.pack("<IIII", sec, usec, len(data), wirelen if wirelen is not None else len(data)))
         self._fh.write(data)
+
+
+class PcapngWriter:
+    """Minimal pcapng writer: one interface per link type, microsecond timestamps, and an
+    optional comment per packet (shown by Wireshark as a packet comment)."""
+
+    def __init__(self, fh: BinaryIO, application: str = "netcreds-ng", snaplen: int = 262144) -> None:
+        self._fh = fh
+        self._snaplen = snaplen
+        self._interfaces: dict[int, int] = {}  # linktype -> interface id
+        shb_opts = _option(4, application.encode("utf-8")) + _END_OF_OPTIONS
+        self._block(PCAPNG_SHB, struct.pack("<IHHq", PCAPNG_BOM, 1, 0, -1) + shb_opts)
+
+    def write(self, data: bytes, timestamp: float = 0.0, linktype: int = 1, wirelen: int | None = None,
+              comment: str | None = None) -> None:  # fmt: skip
+        iface = self._interfaces.get(linktype)
+        if iface is None:
+            iface = self._interfaces[linktype] = len(self._interfaces)
+            self._block(0x00000001, struct.pack("<HHI", linktype, 0, self._snaplen))
+        ts = round(timestamp * 1e6)
+        body = struct.pack("<IIIII", iface, ts >> 32, ts & 0xFFFFFFFF, len(data),
+                           wirelen if wirelen is not None else len(data))  # fmt: skip
+        body += data + b"\0" * (-len(data) % 4)
+        if comment:
+            body += _option(1, comment.encode("utf-8")) + _END_OF_OPTIONS
+        self._block(0x00000006, body)
+
+    def _block(self, btype: int, body: bytes) -> None:
+        total = 12 + len(body)
+        self._fh.write(struct.pack("<II", btype, total) + body + struct.pack("<I", total))
+
+
+_END_OF_OPTIONS = b"\0\0\0\0"
+
+
+def _option(code: int, value: bytes) -> bytes:
+    return struct.pack("<HH", code, len(value)) + value + b"\0" * (-len(value) % 4)

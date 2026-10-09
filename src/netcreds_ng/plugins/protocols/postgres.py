@@ -162,7 +162,8 @@ class PostgresPlugin(ProtocolPlugin):
                 answer = buf[0]
                 del buf[:1]
                 progressed = True
-                if answer == 0x4E:  # 'N': plaintext continues
+                if answer == 0x4E or (answer == 0x53 and ctx.tls_decryption):
+                    # 'N': plaintext continues; 'S' with a key log: the decrypted StartupMessage follows
                     st.pending_enc = False
                     continue
                 ctx.detach()  # 'S' (encrypted) or anything unexpected

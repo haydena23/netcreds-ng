@@ -87,24 +87,35 @@ class TelnetDecoder:
 
     def __init__(self) -> None:
         self._state = 0  # 0 data, 1 after IAC, 2 after WILL/WONT/DO/DONT, 3 in SB, 4 SB after IAC
+        self.negotiated = False  # real option negotiation seen (strong evidence of Telnet)
 
     def feed(self, data: bytes) -> bytes:
-        out = bytearray()
         st = self._state
-        for b in data:
-            if st == 0:
-                if b == IAC:
-                    st = 1
-                else:
-                    out.append(b)
-            elif st == 1:
+        if st == 0 and IAC not in data:
+            return data  # fast path: plain data, nothing to strip
+        out = bytearray()
+        pos, n = 0, len(data)
+        while pos < n:
+            if st == 0:  # copy the run up to the next IAC in one step
+                idx = data.find(b"\xff", pos)
+                if idx < 0:
+                    out += data[pos:]
+                    break
+                out += data[pos:idx]
+                pos, st = idx + 1, 1
+                continue
+            b = data[pos]
+            pos += 1
+            if st == 1:
                 if b == IAC:
                     out.append(IAC)
                     st = 0
                 elif b in (WILL, WONT, DO, DONT):
                     st = 2
+                    self.negotiated = True
                 elif b == SB:
                     st = 3
+                    self.negotiated = True
                 else:
                     st = 0
             elif st == 2:

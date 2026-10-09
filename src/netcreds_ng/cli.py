@@ -61,15 +61,25 @@ def build_parser() -> argparse.ArgumentParser:
         ("jsonl", "append findings as JSON lines"), ("csv", "append findings as CSV"),
         ("log", "append findings as log lines"), ("sqlite", "store findings in a SQLite database"),
         ("html", "write an HTML audit report"),
+        ("evidence", "write the packets behind each finding to a pcapng file (raw packets, secrets included)"),
+        ("cef", "append findings as ArcSight CEF lines"),
     ):  # fmt: skip
         out.add_argument(f"--{fmt}", metavar="PATH", help=helptext)
     out.add_argument("--webhook", metavar="URL", help="POST findings to a webhook (secrets masked)")
+    out.add_argument("--webhook-format", choices=("generic", "slack", "teams", "discord"),
+                     help="webhook payload style (default generic JSON)")  # fmt: skip
+    out.add_argument("--syslog", metavar="URL", help="send findings to syslog, udp://host:514 or tcp://host:514 "
+                     "(CEF body; secrets masked)")  # fmt: skip
     out.add_argument("-o", "--output", action="append", default=[], metavar="FORMAT:PATH",
                      help="generic output, e.g. jsonl:out.jsonl or a plugin-provided format; repeatable")  # fmt: skip
     out.add_argument("--legacy", action="store_true",
                      help="reproduce the original net-creds output (stdout + ./credentials.txt) exactly")  # fmt: skip
 
     an = p.add_argument_group("analysis")
+    an.add_argument("-j", "--jobs", type=int, default=1, metavar="N",
+                    help="analyse up to N capture files in parallel (default 1)")  # fmt: skip
+    an.add_argument("--tls-keylog", metavar="FILE",
+                    help="decrypt TLS sessions found in this NSS key-log file (SSLKEYLOGFILE); needs netcreds-ng[tls]")  # fmt: skip
     an.add_argument("--dedup", choices=("off", "run", "persistent"), default=None, help="duplicate suppression")
     an.add_argument("--dedup-db", metavar="PATH", help="state file for --dedup persistent")
     an.add_argument("--enable", action="append", default=[], metavar="PLUGINS",
@@ -79,6 +89,9 @@ def build_parser() -> argparse.ArgumentParser:
     an.add_argument("--plugin-dir", action="append", default=[], metavar="DIR", help="load plugins from directory")
     an.add_argument("--config", metavar="FILE", help="TOML config file (default: ./netcreds-ng.toml)")
     an.add_argument("--strict", action="store_true", help="exit 3 if any plugin/source warnings occurred")
+    an.add_argument("--strict-heuristics", action="store_true",
+                    help="fewer false positives: heuristic plugins need strong protocol evidence "
+                         "(telnet: Telnet port or option negotiation); disables keyvalue")  # fmt: skip
 
     misc = p.add_argument_group("information")
     misc.add_argument("--list-plugins", action="store_true", help="list plugins and exit")
@@ -166,9 +179,11 @@ def _dispatch(parser: argparse.ArgumentParser, args: argparse.Namespace) -> int:
             plugin_options.setdefault(plugin, {})[key] = value
     except ValueError as exc:
         parser.error(str(exc))
+    if args.strict_heuristics:
+        plugin_options.setdefault("telnet", {}).setdefault("strict", True)
 
     outputs: list[tuple[str, str]] = []
-    for fmt in ("jsonl", "csv", "log", "sqlite", "html"):
+    for fmt in ("jsonl", "csv", "log", "sqlite", "html", "evidence", "cef"):
         target = getattr(args, fmt) or (out_cfg.get(fmt) if isinstance(out_cfg.get(fmt), str) else None)
         if target:
             outputs.append((fmt, target))
@@ -176,6 +191,12 @@ def _dispatch(parser: argparse.ArgumentParser, args: argparse.Namespace) -> int:
     webhook = args.webhook or (wh_cfg.get("url") if isinstance(wh_cfg, dict) else wh_cfg if isinstance(wh_cfg, str) else None)
     if webhook:
         outputs.append(("webhook", webhook))
+        if args.webhook_format:
+            plugin_options.setdefault("webhook", {})["format"] = args.webhook_format
+    sl_cfg = out_cfg.get("syslog")
+    syslog = args.syslog or (sl_cfg.get("url") if isinstance(sl_cfg, dict) else sl_cfg if isinstance(sl_cfg, str) else None)
+    if syslog:
+        outputs.append(("syslog", syslog))
     for spec in args.output:
         fmt, sep, target = spec.partition(":")
         if not sep or not target:
@@ -191,6 +212,8 @@ def _dispatch(parser: argparse.ArgumentParser, args: argparse.Namespace) -> int:
 
     enable = _csv(args.enable) + list(plugin_cfg.get("enable", []))
     disable = _csv(args.disable) + list(plugin_cfg.get("disable", []))
+    if args.strict_heuristics and "keyvalue" in registry.plugins:
+        disable.append("keyvalue")
     mask = args.mask or bool(out_cfg.get("mask", False))
     scfg = SessionConfig(
         enable=enable,
@@ -202,6 +225,9 @@ def _dispatch(parser: argparse.ArgumentParser, args: argparse.Namespace) -> int:
         dedup_db=args.dedup_db or out_cfg.get("dedup_db"),
         exclude_hosts=set(hosts),
         source_label=", ".join(args.pcap) if args.pcap else (args.interface or "live"),
+        tls_keylog=args.tls_keylog or out_cfg.get("tls_keylog") or plugin_cfg.get("tls_keylog"),
+        jobs=max(1, args.jobs),
+        plugin_dirs=args.plugin_dir + list(plugin_cfg.get("dirs", [])),
     )
     if args.pcap:
         return _run_files(args, registry, scfg, mask)
@@ -268,11 +294,10 @@ def _run_files(args: argparse.Namespace, registry: Any, scfg: Any, mask: bool) -
     try:
         session = Session(registry, scfg, listeners=[show])
         session.open()
-    except (OSError, ValueError) as exc:
+    except (OSError, ValueError, RuntimeError) as exc:
         print(f"[ERROR] {exc}", file=sys.stderr)
         return EXIT_ERROR
-    for path in paths:
-        session.run_file(path)
+    session.run_files(paths)
     session.close()
     renderer.summary(session.stats, session.summary(), session.errors)
     if args.strict and (session.stats.total_plugin_errors or session.stats.source_errors):
@@ -307,8 +332,12 @@ def _run_live(args: argparse.Namespace, registry: Any, scfg: Any, mask: bool, ho
         if RISKS.index(f.risk) >= min_risk:
             renderer.finding(f)
 
-    session = Session(registry, scfg, listeners=[show])
-    session.open()
+    try:
+        session = Session(registry, scfg, listeners=[show])
+        session.open()
+    except (OSError, ValueError, RuntimeError) as exc:
+        print(f"[ERROR] {exc}", file=sys.stderr)
+        return EXIT_ERROR
     capture = LiveCapture(iface, bpf)
     if not args.quiet:
         print(f"[*] Capturing on {iface}" + (f" (filter: {bpf})" if bpf else "") + " - Ctrl+C to stop", file=sys.stderr)

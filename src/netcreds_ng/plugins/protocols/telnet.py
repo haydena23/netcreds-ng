@@ -4,12 +4,17 @@ Improvements over the original: Telnet option negotiation is stripped instead
 of dropping whole packets, backspace/delete editing is applied, the username
 and password are paired into one credential, and a following failure message
 is reported.
+
+Option ``strict`` (``--option telnet.strict=true`` or ``--strict-heuristics``): honour
+login prompts only on a Telnet port or after real Telnet option negotiation. Without
+it, such matches are still reported but tagged ``heuristic`` with lower confidence.
 """
 
 from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
+from typing import Any
 
 from netcreds_ng.model import Kind
 from netcreds_ng.plugins.api import Context, Direction, FlowInfo, ProtocolPlugin
@@ -45,6 +50,22 @@ class TelnetPlugin(ProtocolPlugin):
     def new_state(self, flow: FlowInfo) -> _State:
         return _State()
 
+    @property
+    def _strict(self) -> bool:
+        return bool(self.options.get("strict", False))
+
+    def _trusted(self, ctx: Context, st: _State) -> bool:
+        """Strong evidence this is Telnet: a Telnet port, or option negotiation in either direction."""
+        flow = ctx.flow
+        return (
+            flow.server.port in self.default_ports
+            or st.decoders[0].negotiated
+            or st.decoders[1].negotiated
+        )
+
+    def _evidence(self, ctx: Context, st: _State) -> dict[str, Any]:
+        return {} if self._trusted(ctx, st) else {"tags": ["heuristic"], "confidence": 0.6}
+
     def on_gap(self, ctx: Context, direction: Direction, size: int) -> None:
         st: _State = ctx.state
         if direction is Direction.CLIENT_TO_SERVER:
@@ -72,11 +93,15 @@ class TelnetPlugin(ProtocolPlugin):
             st.last_was_password = False
             ctx.emit(
                 Direction.SERVER_TO_CLIENT, Kind.AUTH_RESULT, protocol="Telnet", reverse=True,
-                username=st.user, value="login failed", plugin=self.name,
+                username=st.user, value="login failed", plugin=self.name, **self._evidence(ctx, st),
             )  # fmt: skip
         tail = (st.server_tail + data)[-256:].rstrip(b"\x00")
         st.server_tail = tail
         stripped = tail.rstrip()
+        if self._strict and not self._trusted(ctx, st):
+            if st.server_bytes > _GIVE_UP_BYTES:
+                ctx.detach()
+            return  # strict mode: a prompt alone is not enough evidence on a non-Telnet port
         if _PASS_PROMPT.search(stripped):
             st.expecting, st.prompts_seen = "password", True
             st.typed.clear()
@@ -120,13 +145,14 @@ class TelnetPlugin(ProtocolPlugin):
             kind = Kind.CREDENTIAL if st.user is not None else Kind.PASSWORD
             ctx.emit(
                 Direction.CLIENT_TO_SERVER, kind, protocol="Telnet", username=st.user, secret=value,
-                plugin=self.name, risk="high",
+                plugin=self.name, risk="high", **self._evidence(ctx, st),
             )  # fmt: skip
             st.last_was_password = True
             st.user = None
 
     def _emit_user(self, ctx: Context, st: _State) -> None:
-        ctx.emit(Direction.CLIENT_TO_SERVER, Kind.USERNAME, protocol="Telnet", username=st.user, plugin=self.name)
+        ctx.emit(Direction.CLIENT_TO_SERVER, Kind.USERNAME, protocol="Telnet", username=st.user, plugin=self.name,
+                 **self._evidence(ctx, st))  # fmt: skip
 
     def on_close(self, ctx: Context) -> None:
         st: _State = ctx.state

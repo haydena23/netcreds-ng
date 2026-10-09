@@ -4,6 +4,82 @@
 
 Complete rewrite as a next-generation, defensive credential-exposure auditing tool. The original net-creds behaviour is the parity floor, verified by tests against output recorded from the original Python 2 tool.
 
+### Added in round 2 (milestones M7–M12, engine fixes E-1..E-7)
+
+- **Engine**
+  - Ambiguous client/server direction: if a connection has no handshake and both ports look alike, plugins are offered both orientations, and the first one to produce a finding wins. New `ambiguous_flows` and `orientation_resolved` counters.
+  - Streams picked up without their SYN briefly hold their first segments, so a segment reordered before the first captured one is not lost.
+  - A hole the peer has already ACKed (lost by the capture, not the network) is skipped at once, keeping request/response order.
+  - Interval-based IP defragmentation (no per-byte work), with exact late-duplicate detection.
+  - IPv6 jumbograms, and IPv6 packets with a zero payload length from offload captures.
+  - Packet observers for per-packet sinks.
+  - TLS decryption with an NSS key log (`--tls-keylog`, optional `[tls]` extra): TLS 1.2 (AES-GCM, ChaCha20-Poly1305, AES-CBC with or without encrypt-then-MAC) and TLS 1.3, including KeyUpdate and STARTTLS. Findings from decrypted data are tagged `tls-decrypted`, and are not counted as cleartext exposure.
+  - Parallel analysis of several capture files with `-j/--jobs`; output is identical to a sequential run.
+- **Protocols**
+  - HTTP/2, with a full HPACK decoder checked against the RFC 7541 vectors.
+  - RADIUS (PAP/CHAP/MS-CHAP/EAP events, EAP identities, results).
+  - TACACS+ (unencrypted-mode credentials, authorisation/accounting commands).
+  - MSSQL TDS (LOGIN7 passwords, which are only obfuscated; Windows authentication events; encryption mode).
+  - Oracle TNS (connect metadata, O5LOGON events, refusals, native encryption).
+  - RDP (`mstshash` usernames, flags for no NLA or standard RDP security).
+  - `secrets` detector for cloud/API credentials in any cleartext stream: AWS, GCP, Azure, GitHub, Slack, Stripe, PEM private keys.
+- **Resynchronisation**
+  - LDAP and Redis resynchronise on the next message after a capture gap instead of stopping.
+  - Mail, LDAP, PostgreSQL and MySQL keep parsing after STARTTLS when TLS is being decrypted.
+- **Heuristics:** Telnet logins without a Telnet port or option negotiation are tagged `heuristic` (confidence 0.6). `--strict-heuristics` ignores them and disables `keyvalue`.
+- **Detection enricher:**
+  - alerts for brute force, password spraying, targeted accounts, and a successful login after failures (new `alert` kind; thresholds are options);
+  - a service inventory, accounts shared across services, and 0–100 host exposure scores.
+  - `Finding.outcome` gives a uniform success/failure for login results.
+- **Outputs**
+  - `--evidence` pcapng with the packets behind each finding and Wireshark packet comments.
+  - `--cef` file output.
+  - `--syslog` (RFC 5424 over UDP/TCP, CEF or JSON body; opt-in, masked).
+  - Slack/Teams/Discord webhook formats (`--webhook-format`).
+  - HTML report: executive summary, activity timeline, alerts, service inventory, shared accounts, host scores, print styling.
+  - Console summary: alerts, cleartext services, TLS and direction counters.
+  - `docs/OUTPUTS.md` documents the field reference and Splunk/Elastic examples.
+- **Dashboard:**
+  - filter language (`proto:`, `risk:medium+`, `host:`, `user:`, `tag:`, `kind:`, negation);
+  - session view (`s`) and host drill-down (`o`/`d`);
+  - saved filters (`Ctrl+S`, `f`);
+  - packets/s with a sparkline, alert notifications, alerts and host scores in the analytics panel.
+- **Tooling:**
+  - `tools/bench.py` (throughput benchmark and profiler);
+  - `netcreds_ng.testing.tls_lab`, which creates real in-memory OpenSSL sessions for tests.
+
+### Fixed in round 2 (protocol review and validation gate)
+
+- Reassembly:
+  - a pure ACK captured before reordered data no longer makes that data lost;
+  - findings cite the frame that carried the bytes.
+- TLS:
+  - detected on SYN-less flows whatever orientation was guessed;
+  - handshake messages split across TLS 1.3 records no longer trigger a false KeyUpdate;
+  - `tls-decrypted` is tagged per chunk;
+  - no-key TLS 1.2 sessions stop parsing after CCS.
+- Dual-orientation plugin errors are surfaced when unresolved.
+- RDP no longer misreads ISO-TSAP/S7comm traffic.
+- Evidence:
+  - multi-file runs no longer collide;
+  - all IP fragments are included.
+- IPv6 extension headers after a Fragment header are handled.
+- Defragmenter losses are counted.
+- Detection:
+  - bursts expire;
+  - account names are compared case- and domain-insensitively.
+- Secrets:
+  - documentation sample keys are info;
+  - a lone AWS key id is medium.
+- RADIUS tolerates a malformed datagram on a known flow.
+- TACACS+ optional arguments are parsed correctly.
+- NTLM `event_id` is stable under `-j`.
+
+### Changed in round 2
+
+- Telnet option decoding and the secrets scanner have fast paths for bulk traffic. On the same 188k-frame benchmark, throughput is the same as the M5 baseline (about 13k frames/s) even with 7 more plugins and the detection enricher.
+- License metadata: `GPL-3.0-or-later`.
+
 ### Added
 
 - **Engine**

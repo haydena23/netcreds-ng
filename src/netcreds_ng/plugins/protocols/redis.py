@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from collections import deque
 from dataclasses import dataclass, field
 
@@ -31,6 +32,11 @@ class _State:
     pending: deque[str | None] = field(default_factory=deque)  # usernames of AUTHs awaiting a reply
     client_bytes: int = 0
     recognised: bool = False
+    resync: bool = False  # after a gap: skip to the next RESP array header
+
+
+# A command array starts a line: "\r\n*<count>\r\n$" (the previous command's terminator first).
+_RESP_START = re.compile(rb"\r\n\*[1-9][0-9]?\r\n\$")
 
 
 def _parse_resp(buf: bytearray) -> tuple[list[bytes], int] | None:
@@ -81,8 +87,31 @@ class RedisPlugin(ProtocolPlugin):
     def new_state(self, flow: FlowInfo) -> _State:
         return _State()
 
+    def on_gap(self, ctx: Context, direction: Direction, size: int) -> None:
+        st: _State = ctx.state
+        if not st.recognised:
+            ctx.detach()
+            return
+        if direction is Direction.SERVER_TO_CLIENT:
+            st.lines.gap()
+        else:
+            st.buf.clear()
+            st.resync = True
+        # Replies are matched to AUTHs by order; a hole in either direction breaks that order.
+        st.pending.clear()
+
     def on_data(self, ctx: Context, direction: Direction, data: bytes) -> None:
         st: _State = ctx.state
+        if direction is Direction.CLIENT_TO_SERVER and st.resync:
+            st.buf += data
+            data = b""
+            # A leading CRLF lets an array that starts right at the hole match too.
+            m = _RESP_START.search(b"\r\n" + bytes(st.buf))
+            if m is None:
+                del st.buf[: max(0, len(st.buf) - 16)]
+                return
+            del st.buf[: m.start()]  # offset by the prepended CRLF: buf now starts at the '*'
+            st.resync = False
         if direction is Direction.SERVER_TO_CLIENT:
             if not st.recognised and data:
                 # A Redis server never speaks first; greetings mean SMTP/POP3/IMAP/FTP/... instead.

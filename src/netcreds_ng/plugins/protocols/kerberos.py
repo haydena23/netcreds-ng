@@ -194,4 +194,4 @@ class KerberosPlugin(ProtocolPlugin):
                    ERR_C_PRINCIPAL_UNKNOWN: "unknown principal"}.get(code or -1)  # fmt: skip
         if verdict:
             self._emit(ctx, direction, Kind.AUTH_RESULT, reverse=True, username=cname, domain=realm, value=verdict,
-                       extra={"error_code": code})  # fmt: skip
+                       extra={"error_code": code, "outcome": "failure"})  # fmt: skip

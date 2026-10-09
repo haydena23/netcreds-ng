@@ -192,3 +192,120 @@ def test_mask_redacts_post_bodies_urls_and_extras():
     for secret in ("Json-Mask-Fake", "Query-Mask-Fake", "Form-Mask-Fake"):
         assert secret not in rendered
     assert "m@example.com" in rendered  # non-secret fields stay readable
+
+
+# --- round-2 protocol review (2026-10-08) ---------------------------------------------
+
+
+def test_m4_finding_cites_the_frame_that_carried_the_bytes():
+    from netcreds_ng.model import Kind
+    from netcreds_ng.testing.harness import analyze
+    from netcreds_ng.testing.packets import TCPConversation
+
+    c = TCPConversation("192.0.2.10", 40000, "198.51.100.20", 21)  # no handshake: warm-up path
+    c.client(b"USER bob\r\nPASS Fake-Pw-1\r\n").server(b"230 ok\r\n")
+    (cred,) = [f for f in analyze(c.frames, enrichers=[]) if f.kind is Kind.CREDENTIAL]
+    assert cred.frame == 1 and cred.timestamp == c.frames[0].timestamp
+
+
+class _Raiser:
+    """Protocol plugin that raises on any client data (in whichever orientation it is offered)."""
+
+    @staticmethod
+    def make():
+        from netcreds_ng.plugins.api import Direction, ProtocolPlugin
+
+        class Raiser(ProtocolPlugin):
+            name = "raiser"
+
+            def on_data(self, ctx, direction, data):
+                if direction is Direction.CLIENT_TO_SERVER:
+                    raise ValueError("boom")
+
+        return Raiser()
+
+
+def test_m3_errors_in_ambiguous_flows_are_surfaced():
+    from netcreds_ng.engine.engine import Engine
+    from netcreds_ng.engine.pipeline import Pipeline
+    from netcreds_ng.model import RunStats
+    from netcreds_ng.testing.harness import to_raw_frames
+    from netcreds_ng.testing.packets import TCPConversation
+
+    c = TCPConversation("192.0.2.10", 40000, "198.51.100.20", 41000)  # SYN-less, both ephemeral
+    c.client(b"hello").server(b"world")
+    stats = RunStats()
+    engine = Engine([_Raiser.make()], Pipeline(stats), stats)
+    engine.process(to_raw_frames(c.frames))
+    engine.finish()
+    assert stats.ambiguous_flows == 1
+    assert stats.plugin_errors["raiser"] >= 1  # neither orientation won: reported, not swallowed
+
+
+def test_m2_tls_detected_when_guessed_orientation_is_wrong(tmp_path):
+    import base64
+
+    import pytest
+
+    pytest.importorskip("cryptography")
+    from netcreds_ng.engine.engine import Engine
+    from netcreds_ng.engine.pipeline import Pipeline
+    from netcreds_ng.engine.tls import KeyLog, TLSDecryptor
+    from netcreds_ng.model import Kind, RunStats
+    from netcreds_ng.plugins.registry import load_registry
+    from netcreds_ng.testing.harness import to_raw_frames
+    from netcreds_ng.testing.packets import TCPConversation
+    from netcreds_ng.testing.tls_lab import tls_conversation
+
+    keylog = tmp_path / "k.log"
+    basic = base64.b64encode(b"alice:Fake-Pass-1").decode()
+    req = f"GET / HTTP/1.1\r\nHost: x\r\nAuthorization: Basic {basic}\r\n\r\n".encode()
+    conv = TCPConversation("192.0.2.10", 40000, "198.51.100.20", 50443)  # no SYN; guess picks the wrong client
+    tls_conversation(tmp_path, [(req, b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n")], keylog=str(keylog), conv=conv)
+    stats, found = RunStats(), []
+    engine = Engine(load_registry(use_entry_points=False).select_protocols(), Pipeline(stats, listeners=[found.append]),
+                    stats, tls=TLSDecryptor(KeyLog(str(keylog))))  # fmt: skip
+    engine.process(to_raw_frames(conv.close().frames))
+    engine.finish()
+    assert stats.tls_sessions == 1 and stats.tls_decrypted == 1
+    creds = [(f.username, f.secret, str(f.src)) for f in found if f.kind is Kind.CREDENTIAL]
+    assert creds == [("alice", "Fake-Pass-1", "192.0.2.10:40000")]
+
+
+def test_l3_on_close_finding_from_plaintext_is_not_tagged_decrypted(tmp_path):
+    import pytest
+
+    pytest.importorskip("cryptography")
+    from netcreds_ng.engine.engine import Engine
+    from netcreds_ng.engine.pipeline import Pipeline
+    from netcreds_ng.engine.tls import KeyLog, TLSDecryptor
+    from netcreds_ng.model import Kind, RunStats
+    from netcreds_ng.plugins.api import Direction, ProtocolPlugin
+    from netcreds_ng.testing.harness import to_raw_frames
+    from netcreds_ng.testing.packets import TCPConversation
+    from netcreds_ng.testing.tls_lab import tls_conversation
+
+    class Greeter(ProtocolPlugin):
+        """Reads one plaintext line, then stops; reports it when the flow closes."""
+
+        name = "greeter"
+
+        def on_data(self, ctx, direction, data):
+            ctx.state = data
+            ctx.detach()
+
+        def on_close(self, ctx):
+            if ctx.state:
+                ctx.emit(Direction.SERVER_TO_CLIENT, Kind.INFO, protocol="X", value="greeting seen")
+
+    keylog = tmp_path / "k.log"
+    c = TCPConversation("192.0.2.10", 50025, "198.51.100.20", 25).handshake()
+    c.server(b"220 hi\r\n").client(b"STARTTLS\r\n").server(b"220 go\r\n")
+    tls_conversation(tmp_path, [(b"x", b"y")], keylog=str(keylog), conv=c)
+    stats, found = RunStats(), []
+    engine = Engine([Greeter()], Pipeline(stats, listeners=[found.append]), stats,
+                    tls=TLSDecryptor(KeyLog(str(keylog))))  # fmt: skip
+    engine.process(to_raw_frames(c.close().frames))
+    engine.finish()
+    (info,) = found
+    assert "tls-decrypted" not in info.tags

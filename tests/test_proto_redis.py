@@ -133,3 +133,17 @@ def test_auth_after_other_commands_is_still_found():
     c.client(resp("PING")).server(b"+PONG\r\n").client(resp("AUTH", PW))
     (f,) = run(c)
     assert f.secret == PW
+
+
+def test_resync_after_gap_finds_next_command():
+    # E-5: a hole in the client stream; the plugin skips to the next RESP array.
+    c = conv()
+    c.client(resp("AUTH", "Fake-Pass-1"))
+    c.server(b"+OK\r\n")
+    c.advance(True, 25)
+    c.client(b"lost-bulk-tail\r\n" + resp("AUTH", "alice", "Fake-Pass-2"))
+    found = run(c)
+    secrets = [f.secret for f in found if f.kind in (Kind.CREDENTIAL, Kind.PASSWORD)]
+    assert secrets == ["Fake-Pass-1", "Fake-Pass-2"]
+    # The reply order is unreliable after a hole, so the second AUTH gets no guessed verdict.
+    assert [f.value for f in found if f.kind is Kind.AUTH_RESULT] == ["login succeeded"]

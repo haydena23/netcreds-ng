@@ -31,6 +31,7 @@ BUILTIN_MODULES = (
     "netcreds_ng.plugins.protocols.irc",
     "netcreds_ng.plugins.protocols.mail",
     "netcreds_ng.plugins.protocols.http",
+    "netcreds_ng.plugins.protocols.http2",
     "netcreds_ng.plugins.protocols.keyvalue",
     "netcreds_ng.plugins.protocols.ntlm",
     "netcreds_ng.plugins.protocols.kerberos",
@@ -42,11 +43,20 @@ BUILTIN_MODULES = (
     "netcreds_ng.plugins.protocols.sip",
     "netcreds_ng.plugins.protocols.vnc",
     "netcreds_ng.plugins.protocols.mqtt",
+    "netcreds_ng.plugins.protocols.radius",
+    "netcreds_ng.plugins.protocols.tacacs",
+    "netcreds_ng.plugins.protocols.rdp",
+    "netcreds_ng.plugins.protocols.secrets",
+    "netcreds_ng.plugins.protocols.mssql",
+    "netcreds_ng.plugins.protocols.oracle",
     "netcreds_ng.plugins.enrichers.analytics",
+    "netcreds_ng.plugins.enrichers.detection",
     "netcreds_ng.plugins.sinks.files",
     "netcreds_ng.plugins.sinks.sqlite",
     "netcreds_ng.plugins.sinks.html",
     "netcreds_ng.plugins.sinks.webhook",
+    "netcreds_ng.plugins.sinks.evidence",
+    "netcreds_ng.plugins.sinks.siem",
 )
 
 PluginClass = type[ProtocolPlugin] | type[EnricherPlugin] | type[SinkPlugin]

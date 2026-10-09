@@ -181,8 +181,9 @@ class MySQLPlugin(ProtocolPlugin):
             self._response_320(ctx, st, p)
             return
         if len(p) == 32 and caps & CLIENT_SSL:
-            ctx.detach()  # SSLRequest: the rest of the session is TLS
-            return
+            if not ctx.tls_decryption:
+                ctx.detach()  # SSLRequest: the rest of the session is TLS
+            return  # with a key log the full HandshakeResponse follows, decrypted
         if len(p) < 33:
             ctx.detach()
             return

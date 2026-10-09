@@ -70,7 +70,11 @@ class NTLMPlugin(ProtocolPlugin):
         st.seen.add(identity)
         # Event id from non-secret metadata only. Hashing the message itself would include the
         # NT response, which is testable against candidate passwords: never derive from it.
-        event_id = hashlib.sha256(f"{ctx.flow.flow_id}|{ctx.frame}|{identity}".encode()).hexdigest()[:16]
+        # Endpoints + capture time + frame (not the per-process flow id) keep it stable under -j.
+        flow = ctx.flow
+        event_id = hashlib.sha256(
+            f"{flow.client}|{flow.server}|{ctx.timestamp:.6f}|{ctx.frame}|{identity}".encode()
+        ).hexdigest()[:16]
         risk = "high" if auth.version == "NTLMv1" else "medium"
         ctx.emit(
             direction, Kind.AUTH_EVENT, protocol="NTLM", username=auth.user, domain=auth.domain or None,

@@ -7,6 +7,7 @@ name = "netcreds-ng"
 dynamic = ["version"]
 description = "Next-generation network credential exposure auditing: find cleartext credentials and weak authentication in pcaps or live traffic."
 readme = "README.md"
+license = "GPL-3.0-or-later"
 license-files = ["LICENSE"]
 authors = [{ name = "Tony Hayden", email = "70609182+haydena23@users.noreply.github.com" }]
 requires-python = ">=3.11"
@@ -31,7 +32,10 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+# TLS decryption with a key-log file (--tls-keylog). Prebuilt abi3 wheels on all major platforms.
+tls = ["cryptography>=42,<52"]
 dev = [
+    "cryptography>=42,<52",
     "pytest>=8,<10",
     "hypothesis>=6.100,<7",
     "ruff>=0.6,<1",

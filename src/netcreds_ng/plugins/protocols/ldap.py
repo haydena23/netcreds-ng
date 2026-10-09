@@ -39,6 +39,34 @@ class _State:
     started: list[bool] = field(default_factory=lambda: [False, False])
     pending_binds: dict[int, str | None] = field(default_factory=dict)  # messageID -> bind DN
     starttls_ids: set[int] = field(default_factory=set)
+    resync: list[bool] = field(default_factory=lambda: [False, False])
+
+
+_RESYNC_KEEP = 16  # bytes kept while scanning, enough for a message header split across segments
+
+
+def _find_message(buf: bytearray) -> int | None:
+    """Offset of the first plausible LDAPMessage header (SEQUENCE, short messageID, APPLICATION-class op)."""
+    pos = buf.find(_TAG_SEQUENCE.to_bytes(1, "big"))
+    while 0 <= pos:
+        try:
+            frame = _frame(buf[pos : pos + 6])
+        except ValueError:
+            frame = None
+        if frame is not None:
+            hlen, total = frame
+            id_at = pos + hlen
+            if (
+                total <= _MAX_MESSAGE
+                and id_at + 2 < len(buf)
+                and buf[id_at] == _TAG_INTEGER
+                and 1 <= buf[id_at + 1] <= 4
+                and id_at + 2 + buf[id_at + 1] < len(buf)
+                and 0x40 <= buf[id_at + 2 + buf[id_at + 1]] <= 0x7F  # APPLICATION class (Unbind etc. are primitive)
+            ):
+                return pos
+        pos = buf.find(_TAG_SEQUENCE.to_bytes(1, "big"), pos + 1)
+    return None
 
 
 def _frame(buf: bytearray) -> tuple[int, int] | None:
@@ -67,6 +95,17 @@ class LDAPPlugin(ProtocolPlugin):
     def new_state(self, flow: FlowInfo) -> _State:
         return _State()
 
+    def on_gap(self, ctx: Context, direction: Direction, size: int) -> None:
+        st: _State = ctx.state
+        d = int(direction)
+        if not st.started[d]:
+            ctx.detach()  # not yet known to be LDAP: nothing to resynchronise to
+            return
+        # Messages carry their own messageID, so replies still match after skipping ahead.
+        st.bufs[d].clear()
+        st.skip[d] = 0
+        st.resync[d] = True
+
     def on_data(self, ctx: Context, direction: Direction, data: bytes) -> None:
         st: _State = ctx.state
         d = int(direction)
@@ -78,6 +117,13 @@ class LDAPPlugin(ProtocolPlugin):
             return
         buf = st.bufs[d]
         buf += data
+        if st.resync[d]:
+            start = _find_message(buf)
+            if start is None:
+                del buf[: max(0, len(buf) - _RESYNC_KEEP)]
+                return
+            del buf[:start]
+            st.resync[d] = False
         try:
             self._drain(ctx, st, direction, buf)
         except (ValueError, IndexError):  # DERError is a ValueError
@@ -132,8 +178,8 @@ class LDAPPlugin(ProtocolPlugin):
             self._bind_response(ctx, st, msgid, op.children())
         elif op.tag == _OP_EXT_RESPONSE and msgid in st.starttls_ids:
             parts = op.children()
-            if parts and parts[0].tag == _TAG_ENUM and parts[0].as_int() == _RC_SUCCESS:
-                ctx.detach()  # the rest of the stream is TLS
+            if parts and parts[0].tag == _TAG_ENUM and parts[0].as_int() == _RC_SUCCESS and not ctx.tls_decryption:
+                ctx.detach()  # the rest of the stream is TLS (with a key log, decrypted messages follow)
 
     def _bind_request(self, ctx: Context, st: _State, msgid: int, parts: list) -> None:
         if len(parts) < 3 or parts[0].tag != _TAG_INTEGER or parts[1].tag != _TAG_OCTETS:

@@ -24,6 +24,7 @@ class Kind(str, enum.Enum):
     POST = "post"
     SEARCH = "search"
     INFO = "info"
+    ALERT = "alert"  # behavioural detection (brute force, spraying, ...) raised by an enricher
 
     @property
     def is_secret(self) -> bool:
@@ -41,6 +42,8 @@ class Endpoint:
     port: int
 
     def __str__(self) -> str:
+        if self.port == 0:  # host-level (e.g. an alert spanning many connections)
+            return self.ip
         if ":" in self.ip:
             return f"[{self.ip}]:{self.port}"
         return f"{self.ip}:{self.port}"
@@ -82,6 +85,25 @@ class Finding:
             return self.value
         return self.secret or self.username or ""
 
+    @property
+    def outcome(self) -> str | None:
+        """For AUTH_RESULT findings: ``"success"``, ``"failure"`` or None if unknown.
+
+        Plugins may set ``extra["outcome"]`` explicitly; otherwise the conventional
+        wording of ``value`` ("login failed", "... succeeded", "reject", "accept") is used.
+        """
+        if self.kind is not Kind.AUTH_RESULT:
+            return None
+        explicit = self.extra.get("outcome")
+        if explicit in ("success", "failure"):
+            return str(explicit)
+        v = (self.value or "").lower()
+        if "fail" in v or "reject" in v or "denied" in v:
+            return "failure"
+        if "succe" in v or "accept" in v or v.endswith(" ok"):
+            return "success"
+        return None
+
     def dedup_key(self) -> tuple[Any, ...]:
         # Every login attempt result is its own event (repeated failures can mean brute forcing).
         attempt = self.frame if self.kind is Kind.AUTH_RESULT else None
@@ -120,13 +142,24 @@ class RunStats:
     udp_flows: int = 0
     ip_fragments: int = 0
     ip_reassembled: int = 0
+    ip_fragments_expired: int = 0  # incomplete datagrams dropped (timeout, table full, end of input)
+    ip_fragment_duplicates: int = 0  # late copies of fragments of already reassembled datagrams
     tcp_gaps: int = 0
     tcp_gap_bytes: int = 0
     tcp_retransmitted_bytes: int = 0
     evicted_flows: int = 0
+    ambiguous_flows: int = 0  # client/server roles unknown: plugins were offered both orientations
+    orientation_resolved: int = 0  # ambiguous (flow, plugin) pairs settled by a finding
+    tls_sessions: int = 0  # TLS connections seen while a key log was loaded
+    tls_decrypted: int = 0
+    tls_no_key: int = 0
+    tls_unsupported: int = 0
+    tls_failed: int = 0
     findings: int = 0
     duplicates: int = 0
     plugin_errors: Counter[str] = field(default_factory=Counter)
+    # errors in a guessed orientation of an ambiguous flow (reported as plugin errors if unresolved)
+    suppressed_orientation_errors: Counter[str] = field(default_factory=Counter)
     source_errors: list[str] = field(default_factory=list)
     by_protocol: Counter[str] = field(default_factory=Counter)
     by_kind: Counter[str] = field(default_factory=Counter)
@@ -136,3 +169,26 @@ class RunStats:
     @property
     def total_plugin_errors(self) -> int:
         return sum(self.plugin_errors.values())
+
+    #: Counters owned by the findings pipeline; a worker's values are not merged (the main
+    #: process re-counts when it publishes the worker's findings).
+    PIPELINE_FIELDS = frozenset({"findings", "duplicates", "by_protocol", "by_kind"})
+
+    def merge(self, other: RunStats) -> None:
+        """Add another run's engine counters (e.g. from a worker process) into this one."""
+        for name, value in vars(other).items():
+            if name in self.PIPELINE_FIELDS:
+                continue
+            mine = getattr(self, name)
+            if name == "first_ts":
+                if value is not None and (mine is None or value < mine):
+                    self.first_ts = value
+            elif name == "last_ts":
+                if value is not None and (mine is None or value > mine):
+                    self.last_ts = value
+            elif isinstance(mine, Counter):
+                mine.update(value)
+            elif isinstance(mine, list):
+                mine.extend(value)
+            elif isinstance(mine, int):
+                setattr(self, name, mine + value)

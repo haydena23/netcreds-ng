@@ -17,7 +17,7 @@ KIND_LABEL = {
     Kind.CREDENTIAL: "credential", Kind.USERNAME: "username", Kind.PASSWORD: "password",
     Kind.AUTH_EVENT: "auth", Kind.TOKEN: "token", Kind.API_KEY: "api key", Kind.COOKIE: "cookie",
     Kind.COMMUNITY: "community", Kind.AUTH_RESULT: "result", Kind.URL: "url", Kind.POST: "post",
-    Kind.SEARCH: "search", Kind.INFO: "info",
+    Kind.SEARCH: "search", Kind.INFO: "info", Kind.ALERT: "ALERT",
 }  # fmt: skip
 BROWSING = (Kind.URL, Kind.POST, Kind.SEARCH)
 
@@ -75,7 +75,16 @@ class ConsoleRenderer:
         t.add_row("Findings", f"{stats.findings:,}", "Duplicates suppressed", f"{stats.duplicates:,}")
         t.add_row("TCP gaps", f"{stats.tcp_gaps:,} ({stats.tcp_gap_bytes:,} B)", "Retransmitted", f"{stats.tcp_retransmitted_bytes:,} B")
         if stats.ip_fragments:
-            t.add_row("IP fragments", f"{stats.ip_fragments:,}", "Reassembled", f"{stats.ip_reassembled:,}")
+            lost = f" ({stats.ip_fragments_expired:,} incomplete dropped)" if stats.ip_fragments_expired else ""
+            t.add_row("IP fragments", f"{stats.ip_fragments:,}", "Reassembled", f"{stats.ip_reassembled:,}{lost}")
+        if stats.tls_sessions:
+            t.add_row("TLS sessions", f"{stats.tls_sessions:,}", "Decrypted / no key",
+                      f"{stats.tls_decrypted:,} / {stats.tls_no_key:,}"
+                      + (f" ({stats.tls_unsupported + stats.tls_failed:,} other)"
+                         if stats.tls_unsupported + stats.tls_failed else ""))  # fmt: skip
+        if stats.ambiguous_flows:
+            t.add_row("Ambiguous direction", f"{stats.ambiguous_flows:,} flows", "Resolved by findings",
+                      f"{stats.orientation_resolved:,}")  # fmt: skip
         if stats.truncated_frames or stats.undecodable:
             t.add_row("Truncated frames", f"{stats.truncated_frames:,}", "Non-IP/undecodable", f"{stats.undecodable:,}")
         c.print(t)
@@ -109,6 +118,24 @@ class ConsoleRenderer:
                         str(h["as_server"]), ", ".join(h["protocols"]), _clip(", ".join(h["accounts"]), 60),
                     )  # fmt: skip
                 c.print(ht)
+            alerts = analytics.get("alerts") or []
+            if alerts:
+                at = Table(title="Alerts", title_justify="left")
+                for col in ("Detection", "Protocol", "Source > destination", "Detail"):
+                    at.add_column(col)
+                for a in alerts[:20]:
+                    at.add_row(Text(a["detection"], style=RISK_STYLE["high"]), a["protocol"],
+                               f"{a['src']} > {a['dst']}", _clip(str(a["value"]), 80))  # fmt: skip
+                c.print(at)
+            clear = [s for s in analytics.get("services") or [] if s.get("cleartext")]
+            if clear:
+                st = Table(title="Services exposing cleartext secrets", title_justify="left")
+                for col in ("Server", "Protocol", "Accounts", "Logins ok/failed"):
+                    st.add_column(col)
+                for s in clear[:15]:
+                    st.add_row(s["server"], s["protocol"], _clip(", ".join(s["accounts"]), 50),
+                               f"{s['successes']}/{s['failures']}")  # fmt: skip
+                c.print(st)
         problems = list(stats.source_errors)
         for name, n in stats.plugin_errors.items():
             problems.append(f"{name}: {n} error(s)")

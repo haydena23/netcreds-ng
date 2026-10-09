@@ -16,7 +16,8 @@ def _rows(app: NetcredsApp) -> int:
 
 async def _drive(tmp_path) -> None:
     app = NetcredsApp(load_registry(use_entry_points=False), SessionConfig(),
-                      files=[str(SYNTHETIC / "ftp_basic.pcap"), str(SYNTHETIC / "http_basic.pcap")])  # fmt: skip
+                      files=[str(SYNTHETIC / "ftp_basic.pcap"), str(SYNTHETIC / "http_basic.pcap")],
+                      filters_path=tmp_path / "filters.json")  # fmt: skip
     async with app.run_test(size=(160, 45)) as pilot:
         for _ in range(100):
             await pilot.pause(0.05)
@@ -64,3 +65,68 @@ async def _drive(tmp_path) -> None:
 def test_tui_headless(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     asyncio.run(_drive(tmp_path))
+
+
+async def _wait_done(app: NetcredsApp, pilot) -> None:
+    for _ in range(100):
+        await pilot.pause(0.05)
+        if app.state == "done":
+            break
+    await pilot.pause(0.2)
+    assert app.state == "done"
+
+
+async def _drive_m11(tmp_path, capture) -> None:
+    filters = tmp_path / "filters.json"
+    app = NetcredsApp(load_registry(use_entry_points=False), SessionConfig(), files=[str(capture)],
+                      filters_path=filters)  # fmt: skip
+    async with app.run_test(size=(160, 45)) as pilot:
+        await _wait_done(app, pilot)
+        total = _rows(app)
+        assert app.alerts, "brute-force capture should raise an alert"
+        assert "alerts" in str(app.query_one("#status").render())
+
+        # session view: only the selected finding's connection
+        table = app.query_one("#table")
+        table.move_cursor(row=0)
+        first = app._selected()
+        await pilot.press("s")
+        await pilot.pause()
+        assert app.scope is not None and 0 < _rows(app) < total
+        pair = {(first.src.ip, first.src.port), (first.dst.ip, first.dst.port)}
+        assert all({(f.src.ip, f.src.port), (f.dst.ip, f.dst.port)} == pair for f in app.findings if app._visible(f))
+        await pilot.press("escape")
+        await pilot.pause()
+        assert app.scope is None and _rows(app) == total
+
+        # host drill-down on the server side covers everything here
+        await pilot.press("d")
+        await pilot.pause()
+        assert _rows(app) == total and "host" in app.scope[0]
+        await pilot.press("escape")
+
+        # field filters + saving and recalling them
+        await pilot.press("slash", *"kind:alert", "enter")
+        await pilot.pause()
+        assert _rows(app) == len(app.alerts)
+        await pilot.press("ctrl+s")
+        await pilot.pause()
+        assert '"kind:alert"' in filters.read_text(encoding="utf-8")
+        await pilot.press("escape")
+        await pilot.pause()
+        assert _rows(app) == total
+        await pilot.press("f")
+        await pilot.pause()
+        assert app.filter_text == "kind:alert" and _rows(app) == len(app.alerts)
+        assert len(app.rates) == 120
+        await pilot.press("q")
+
+
+def test_tui_m11_drilldown_filters_alerts(tmp_path, monkeypatch):
+    from netcreds_ng.testing.packets import write_pcap
+    from test_detection import attempt
+
+    monkeypatch.chdir(tmp_path)
+    capture = tmp_path / "bf.pcap"
+    write_pcap(str(capture), [fr for n in range(6) for fr in attempt("192.0.2.30", n, "gina")])
+    asyncio.run(_drive_m11(tmp_path, capture))

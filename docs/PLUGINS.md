@@ -63,11 +63,13 @@ class AcmePlugin(ProtocolPlugin):
 | `on_datagram(ctx, direction, data)` | each UDP payload (set `transports = frozenset({Transport.UDP})`) |
 | `on_close(ctx)` | flow ended or was evicted; emit anything still pending |
 
-- `direction` is `Direction.CLIENT_TO_SERVER` or `SERVER_TO_CLIENT`. The client is the side that sent the SYN; without a handshake it is inferred from the ports.
+- `direction` is `Direction.CLIENT_TO_SERVER` or `SERVER_TO_CLIENT`. The client is the side that sent the SYN; without a handshake it is inferred from the ports. When the ports cannot decide (both ephemeral, or both well-known), the engine gives your plugin two contexts, one per orientation. The first one to emit a finding wins, and the other is detached and gets no `on_close`. So a plugin that emits nothing for traffic in the wrong direction needs no special handling.
+- `ctx.tls_decryption` is True when the engine decrypts TLS with a key log. After STARTTLS (or an SSLRequest) your plugin then receives the decrypted plaintext, or nothing, but never ciphertext, so keep parsing instead of detaching. The engine tags findings from decrypted data `tls-decrypted`.
 - `ctx.flow` holds `client`, `server` (`Endpoint(ip, port)`), `transport` and `flow_id`.
 - `ctx.emit(direction, kind, protocol=..., **fields)` builds a `Finding` and stamps it with the flow endpoints, the packet timestamp and the frame number. Pass `reverse=True` for a server reply that reports on the client's login (an `AUTH_RESULT`), so src/dst still read client → server.
 - Finding fields: `username`, `secret`, `domain`, `value` (display text for events/URLs), `risk` (`info`/`low`/`medium`/`high`), `tags`, `extra` (JSON-serialisable dict), `confidence`.
-- Kinds: `CREDENTIAL`, `USERNAME`, `PASSWORD`, `TOKEN`, `API_KEY`, `COOKIE`, `COMMUNITY`, `AUTH_EVENT`, `AUTH_RESULT`, `URL`, `POST`, `SEARCH`, `INFO`.
+- Kinds: `CREDENTIAL`, `USERNAME`, `PASSWORD`, `TOKEN`, `API_KEY`, `COOKIE`, `COMMUNITY`, `AUTH_EVENT`, `AUTH_RESULT`, `URL`, `POST`, `SEARCH`, `INFO`. `ALERT` is reserved for enrichers (behavioural detections).
+- For `AUTH_RESULT`, use the values `login succeeded` / `login failed` (or include "failed"/"succeeded"), or set `extra["outcome"] = "success" | "failure"`. `Finding.outcome` reads this, and the brute-force/spraying detection depends on it.
 - Class attributes:
   - `ports_only = True` restricts the plugin to `default_ports`.
   - `opt_in = True` disables it unless the user passes `--enable <name>` or `--enable all`.
@@ -98,6 +100,9 @@ def test_acme_login():
 - `analyze()` raises if any plugin errored, so silent failures cannot pass.
 - `TCPConversation` also offers `raw_segment()` and `advance()`, for out-of-order and retransmission scenarios.
 - `udp_frame()` builds UDP frames, and `write_pcap()` saves a fixture for use with the CLI.
+- `netcreds_ng.testing.protocols`, `aaa_msgs`, `db_msgs`, `rdp_msgs` and `h2_msgs` build messages for the built-in protocols (DER/Kerberos/NTLM/SNMP, RADIUS/TACACS+, TDS/TNS, RDP, HTTP/2 with an HPACK encoder).
+- `netcreds_ng.testing.tls_lab.tls_conversation()` runs a real TLS 1.2/1.3 session through OpenSSL in memory and records it, with the key log, so you can test your plugin behind `--tls-keylog`.
+- Add your protocol to `tests/test_cross_protocol_ng.py` (built-in plugins) so it is checked against every other plugin for misfires.
 
 ## Distributing a plugin
 
@@ -129,4 +134,6 @@ class StdoutCount(SinkPlugin):
     def close(self, stats): print(f"{self.n} findings")
 ```
 
-Enrichers run after de-duplication. Sinks receive `target` (the part after `FORMAT:`) and `options` (from `--option <name>.key=value` or the config file; `mask` is set when `--mask` is used).
+Enrichers run after de-duplication, in `priority` order. The built-in ones are `analytics` (10) and `detection` (20). Sinks receive `target` (the part after `FORMAT:`) and `options` (from `--option <name>.key=value` or the config file; `mask` is set when `--mask` is used).
+
+A sink that needs the packets themselves (like the built-in `evidence` sink) sets `wants_packets = True` and implements `on_packet(pkt)`. It is then called with every decoded TCP/UDP packet before the protocol plugins see it. `pkt.frame` is the raw frame. Such a sink makes the run sequential (`-j` is ignored).

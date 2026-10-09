@@ -169,3 +169,25 @@ def test_not_ldap_streams_produce_nothing():
     c = conv()
     c.client(seq(der_octets(b"abc")) + simple_bind(1, DN, PW))
     assert run(c) == []
+
+
+def test_resync_after_gap_finds_next_bind():
+    # E-5: bytes lost mid-stream; the plugin skips to the next LDAPMessage instead of detaching.
+    c = conv()
+    c.client(simple_bind(1, "cn=first,dc=example,dc=org", "Fake-Pass-1"))
+    c.server(bind_response(1, 0))
+    c.advance(True, 40)  # 40 client bytes never captured
+    c.client(b"\x99junk-tail-of-lost-message" + simple_bind(2, "cn=second,dc=example,dc=org", "Fake-Pass-2"))
+    c.server(bind_response(2, 49))
+    found = run(c)
+    creds = [(f.username, f.secret) for f in found if f.kind is Kind.CREDENTIAL]
+    assert creds == [("cn=first,dc=example,dc=org", "Fake-Pass-1"), ("cn=second,dc=example,dc=org", "Fake-Pass-2")]
+    results = [f.value for f in found if f.kind is Kind.AUTH_RESULT]
+    assert results == ["login succeeded", "login failed"]
+
+
+def test_gap_before_ldap_is_recognised_detaches():
+    c = conv()
+    c.advance(True, 10)
+    c.client(simple_bind(1, "cn=x,dc=example,dc=org", "Fake-Pass-1"))
+    assert run(c) == []
