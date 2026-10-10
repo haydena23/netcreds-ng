@@ -25,9 +25,10 @@ log = logging.getLogger(__name__)
 class SessionConfig:
     enable: list[str] = field(default_factory=list)
     disable: list[str] = field(default_factory=list)
+    plugins: list[str] = field(default_factory=list)  # --plugins: run only these plugins/sets (empty: default)
+    sets: dict[str, list[str]] = field(default_factory=dict)  # user-defined plugin sets ([sets] in the config)
     plugin_options: dict[str, dict[str, Any]] = field(default_factory=dict)
     outputs: list[tuple[str, str]] = field(default_factory=list)  # (format, target)
-    mask_outputs: bool = False
     dedup: str = "run"
     dedup_db: str | None = None
     exclude_hosts: set[str] = field(default_factory=set)
@@ -35,6 +36,11 @@ class SessionConfig:
     tls_keylog: str | None = None  # NSS key-log file: decrypt TLS sessions it has secrets for
     jobs: int = 1  # worker processes for multiple capture files
     plugin_dirs: list[str] = field(default_factory=list)  # so workers load the same plugins
+
+
+def _protocols(registry: Registry, config: SessionConfig) -> list[Any]:
+    return registry.select_protocols(config.enable, config.disable, config.plugin_options, only=config.plugins,
+                                     user_sets=config.sets)  # fmt: skip
 
 
 def _worker(path: str, config: SessionConfig) -> tuple[list[Finding], RunStats, list[str]]:
@@ -53,7 +59,7 @@ def _worker(path: str, config: SessionConfig) -> tuple[list[Finding], RunStats, 
         from netcreds_ng.engine.tls import KeyLog, TLSDecryptor
 
         tls = TLSDecryptor(KeyLog(config.tls_keylog))
-    engine = Engine(registry.select_protocols(config.enable, config.disable, config.plugin_options), pipeline, stats,
+    engine = Engine(_protocols(registry, config), pipeline, stats,
                     exclude_hosts=config.exclude_hosts, tls=tls)  # fmt: skip
     try:
         engine.process(file_frames(path))
@@ -82,15 +88,14 @@ class Session:
     def __init__(self, registry: Registry, config: SessionConfig, listeners: Iterable[Callable[[Finding], None]] = ()):
         self.config = config
         self.stats = RunStats()
-        self.protocols = registry.select_protocols(config.enable, config.disable, config.plugin_options)
-        self.enrichers = registry.select_enrichers(config.enable, config.disable, config.plugin_options)
+        self.protocols = _protocols(registry, config)
+        self.enrichers = registry.select_enrichers(config.enable, config.disable, config.plugin_options, config.sets)
         self.analytics = next((e for e in self.enrichers if isinstance(e, AnalyticsEnricher)), None)
         self.detection = next((e for e in self.enrichers if isinstance(e, DetectionEnricher)), None)
         self.sinks: list[SinkPlugin] = []
         for fmt, target in config.outputs:
             cls = registry.sink_class(fmt)
             opts = dict(config.plugin_options.get(fmt, {}))
-            opts.setdefault("mask", config.mask_outputs)
             opts.setdefault("summary", self.summary)
             opts.setdefault("source_label", config.source_label)
             self.sinks.append(cls(target, opts))

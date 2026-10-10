@@ -127,6 +127,9 @@ class ProtocolPlugin:
     ports_only: ClassVar[bool] = False
     #: Opt-in plugins are disabled unless enabled explicitly.
     opt_in: ClassVar[bool] = False
+    #: Named sets this plugin belongs to (``--plugins databases``). A plugin may join the
+    #: built-in sets or name new ones; set names must not clash with plugin names.
+    sets: ClassVar[tuple[str, ...]] = ()
     priority: ClassVar[int] = 100
 
     def __init__(self, options: dict[str, Any] | None = None) -> None:

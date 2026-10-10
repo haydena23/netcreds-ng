@@ -103,22 +103,6 @@ def test_session_summary_merges_scores_into_hosts():
     assert host["score"] == summary["host_scores"]["192.0.2.16"] > 0
 
 
-def test_html_report_has_summary_alerts_inventory_and_timeline(tmp_path):
-    from netcreds_ng.cli import main
-    from netcreds_ng.testing.packets import write_pcap
-
-    frames = [fr for n in range(6) for fr in attempt("192.0.2.17", n, "frank")]
-    pcap, html = tmp_path / "bf.pcap", tmp_path / "r.html"
-    write_pcap(str(pcap), frames)
-    assert main(["-p", str(pcap), "-q", "--html", str(html), "--mask"]) == 0
-    page = html.read_text(encoding="utf-8")
-    for section in ("Activity over time", "Alerts", "Service inventory", "Host exposure", "Findings"):
-        assert f"<h2>{section}</h2>" in page
-    assert "class='summary'" in page and "behavioural alert" in page
-    assert "<path class='bar'" in page and "<title>" in page
-    assert "Fake-Guess-" not in page  # --mask keeps secrets out of the report
-
-
 def test_success_long_after_a_burst_is_not_an_alert():
     # Review L1: the success must fall within the window of the burst's last failure.
     frames = [fr for n in range(5) for fr in attempt("192.0.2.40", n, "hank")]

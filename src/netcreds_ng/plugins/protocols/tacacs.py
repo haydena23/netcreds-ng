@@ -95,6 +95,7 @@ def _command(args: list[str]) -> str | None:
 
 class TacacsPlugin(ProtocolPlugin):
     name = "tacacs"
+    sets = ("aaa", "network")
     description = "TACACS+: cleartext ASCII/PAP logins, command authorization/accounting, results"
     default_ports = frozenset({49})
     priority = 90

@@ -13,7 +13,7 @@ from dataclasses import dataclass, field
 
 from netcreds_ng.model import Kind
 from netcreds_ng.plugins.api import Context, Direction, FlowInfo, ProtocolPlugin
-from netcreds_ng.plugins.protocols._util import LineBuffer, text
+from netcreds_ng.plugins.protocols._util import LineBuffer, placeholder, text
 from netcreds_ng.plugins.protocols.http import METHODS, PASS_FIELDS, USER_FIELDS
 
 _SCAN_LIMIT = 1 << 20
@@ -37,6 +37,7 @@ class _State:
 
 class KeyValuePlugin(ProtocolPlugin):
     name = "keyvalue"
+    sets = ("generic", "legacy")
     description = "Generic user=/pass= credential patterns in non-HTTP cleartext streams (heuristic)"
     priority = 200
 
@@ -69,9 +70,9 @@ class KeyValuePlugin(ProtocolPlugin):
                 self._scan(ctx, Direction(d), tail)
 
     def _scan(self, ctx: Context, direction: Direction, line: bytes) -> None:
-        pw = _PASS.search(line)
+        pw = next((m for m in _PASS.finditer(line) if not placeholder(m.group(2))), None)
         if pw is None:
-            return
+            return  # no password field, or only template/masked values (``pass=%s``, ``password=****``)
         user = _USER.search(line)
         ctx.emit(
             direction, Kind.CREDENTIAL if user else Kind.PASSWORD, protocol="Cleartext",

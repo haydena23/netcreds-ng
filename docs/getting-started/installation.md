@@ -60,7 +60,7 @@ All dependencies are pure Python or ship prebuilt wheels, so no compiler is need
 | Package | Used for |
 | --- | --- |
 | `rich` | console output and tables |
-| `textual` | the interactive dashboard |
+| `textual` | the live table (`--tui`) |
 | `scapy` | live capture only; capture files are read by netcreds-ng's own reader |
 | `psutil` | network interface discovery (`--list-interfaces`) |
 | `cryptography` | TLS decryption (optional `[tls]` extra) |

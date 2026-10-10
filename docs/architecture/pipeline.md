@@ -17,7 +17,7 @@ flowchart LR
 1. **Dedup first**, so enrichers see each finding exactly once and their counters (weak passwords, host profiles, failure windows) are not inflated by repeats.
 2. **Enrichers** run in `(priority, name)` order. Each may change the finding in place (tags, risk, `extra`) and may yield new findings, which go back on the queue and through dedup and every enricher. This is how the `detection` enricher's alerts reach the outputs.
 3. **Sinks** receive the finding through `write()`.
-4. **Listeners** are plain callables registered by the caller; the console renderer and the dashboard are listeners.
+4. **Listeners** are plain callables registered by the caller; the console renderer and the live table are listeners.
 
 Each enricher and sink call is isolated: an exception is counted as `enricher:<name>` or `sink:<name>` in `stats.plugin_errors`, and processing continues.
 
@@ -36,7 +36,7 @@ The key deliberately excludes the source port (so the same login over many conne
 The pipeline calls `open(SinkContext)` on every sink before the first finding (also when there are no findings), `write(finding)` for each finding, and `close(stats)` once at the end. The session passes each sink:
 
 - `target`: the PATH or URL part of the output option;
-- `options`: the plugin options for that sink name, plus `mask` (true with `--mask`), `summary` (a callable returning the analytics and detection summary, used by the HTML report) and `source_label` (the capture paths or interface).
+- `options`: the plugin options for that sink name, plus `summary` (a callable returning the analytics and detection summary) and `source_label` (the capture paths or interface).
 
 Sinks with `wants_packets = True` are also registered as engine packet observers and receive `on_packet(pkt)` for every decoded packet.
 
@@ -70,10 +70,10 @@ flowchart LR
 
 - Each worker loads the registry itself (including `plugin_dirs`), runs the engine and protocol plugins on one file with dedup off, and returns its findings, `RunStats` and error messages.
 - The main process merges the engine counters (`RunStats.merge()`) and publishes the findings **in file order** through its own pipeline, so dedup, analytics, alerts and outputs behave as in a sequential run.
-- Sequential mode is used instead when there is only one file, when a stop callback is given (the dashboard), or when a sink needs packets (`--evidence`).
+- Sequential mode is used instead when there is only one file, when a stop callback is given (the live table), or when a sink needs packets (`--evidence`).
 
 A connection split across two files is seen as two partial connections in parallel mode, while sequential mode carries flows across files.
 
 ## The console renderer
 
-`netcreds_ng.output.console.ConsoleRenderer` is a listener that prints one line per finding and, at the end, the run summary tables from `RunStats` and `Session.summary()`. The CLI applies `--min-risk` before calling it; `--no-browsing`, `--mask`, `-v` and `-q` are renderer settings.
+`netcreds_ng.output.console.ConsoleRenderer` is a listener that prints one line per finding and, at the end, the run summary tables from `RunStats` and `Session.summary()`. The CLI applies `--min-risk` before calling it; `--no-browsing`, `-v` and `-q` are renderer settings.

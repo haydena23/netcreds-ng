@@ -57,45 +57,22 @@ Excluded packets are counted as *filtered*. The match is on the exact IP address
 | `-q` | no console output at all, outputs only |
 | `--min-risk LEVEL` | only show findings at or above `info`, `low`, `medium` or `high` |
 | `--no-browsing` | hide URL, POST and search findings |
-| `--mask` | mask secrets |
 
-These options affect the screen only, except `--mask`, which also applies to outputs. Outputs always receive every finding. To filter what an output receives, use its own options (`min_risk` for the webhook and syslog outputs) or post-process the JSON.
+These options affect the screen only. Outputs always receive every finding, secrets included. To filter what an output receives, use its own options (`min_risk` for the webhook and syslog outputs) or post-process the JSON.
 
 Line breaks inside values are shown as `\r` and `\n`, so one finding is always one line.
 
-## Masking secrets
-
-`--mask` replaces each secret with its first and last character and its length:
-
-```text
-formuser:F************s (14)
-```
-
-It covers:
-
-- every secret field (`secret`, and therefore `display`);
-- secret-looking values inside free text: form and JSON fields named like passwords or tokens, `api_key=`-style query parameters, and `Authorization`, `Proxy-Authorization`, `Cookie` and `X-API-Key` header lines in `value` and `extra`.
-
-It does not try to recognise secrets in arbitrary prose, and it cannot mask the [evidence pcapng](../reference/outputs.md#evidence-pcapng), which holds the original packets.
-
-Some outputs mask by default even without `--mask`:
-
-| Output | Default |
-| --- | --- |
-| console, `--jsonl`, `--csv`, `--log`, `--sqlite`, `--cef` | full secrets unless `--mask` |
-| `--html` | masked unless `--option html.include_secrets=true` |
-| `--webhook`, `--syslog` | masked unless `--option <name>.include_secrets=true` |
-| `--evidence` | never masked (raw packets) |
-
 ## Choosing plugins
 
-All protocol plugins and both enrichers run by default.
+All protocol plugins and both enrichers run by default. Narrow it down with plugin and set names:
 
 ```bash
-netcreds-ng -p cap.pcap --disable keyvalue,telnet     # turn some off
-netcreds-ng -p cap.pcap --enable all                  # include any opt-in plugins (third-party)
-netcreds-ng --list-plugins                            # see what is available
+netcreds-ng -p cap.pcap -P databases,ftp              # only these
+netcreds-ng -p cap.pcap --disable keyvalue,telnet     # everything except these
+netcreds-ng --list-plugins                            # plugins and sets
 ```
+
+See [choosing plugins](choosing-plugins.md).
 
 `--strict-heuristics` cuts the two noisiest sources of false positives: it disables `keyvalue` and makes `telnet` ignore login prompts that are neither on a Telnet port nor preceded by Telnet option negotiation.
 

@@ -43,9 +43,14 @@ netcreds-ng ships 23 protocol plugins. This page describes, for each one, what i
 | Behaviour | Plugins |
 | --- | --- |
 | drop the damaged line and continue at the next one | `ftp`, `mail`, `irc`, `telnet`, `keyvalue` |
-| resynchronise on the next message | `http`, `ldap`, `redis` |
+| resynchronise on the next message | `http`, `ldap`, `redis`, `sip` (TCP), `mysql` (after login), `postgres` (after the StartupMessage) |
 | discard buffered bytes and keep scanning | `ntlm`, `kerberos` (TCP), `secrets` |
-| stop analysing the connection | `http2`, `vnc`, `mysql`, `postgres`, `mssql`, `oracle`, `mqtt`, `sip` (TCP), `tacacs`, `rdp` |
+| ignore gaps in data it no longer reads | `mqtt` (client data after the CONNECT) |
+| stop analysing the connection | `http2`, `vnc`, `mssql`, `oracle`, `tacacs`, `rdp`; `mysql`, `postgres`, `sip` and `mqtt` before the points above |
+
+Length-framed protocols have no sync marker. `mysql` and `postgres` therefore resume at the next TCP segment that consists of whole messages (data after a gap always starts a segment), and wait for another segment otherwise. `sip` resumes at the next line that is a SIP request or status line.
+
+**One secret, one finding.** When two plugins report the same secret in the same connection (an API key in an HTTP request is found by both `http` and `secrets`), the later report is counted as a duplicate, unless it adds a user name the earlier one lacked (an HTTP form login whose password `secrets` already saw as a bare token is still reported as a credential). Usually `http` reports first, because it runs earlier; if the request body arrives in pieces, `secrets` may see the complete key first. `--dedup off` keeps both.
 
 **TLS.** When a key log is supplied, plugins receive decrypted data after a TLS handshake or STARTTLS, and their findings are tagged `tls-decrypted`. Without keys, plugins stop at STARTTLS. See [TLS decryption](../guide/tls-decryption.md).
 
@@ -108,7 +113,7 @@ How it works:
 - Prompts are recognised in server output: `username:`, `user name:`, `login:`, and `password:`/`passcode:` (optionally `for <user>`).
 - Streams that start like another protocol (HTTP, SIP, RTSP, POP3, IMAP, FTP/SMTP `220`) are ignored, so prompts inside an HTTP response are not taken for a Telnet login.
 
-**Heuristic matches.** On a port other than 23/2323 and without real Telnet option negotiation, findings are tagged `heuristic` with confidence 0.6. With `--option telnet.strict=true` (or `--strict-heuristics`) they are not reported at all.
+**Heuristic matches.** On a port other than 23/2323 and without real Telnet option negotiation, findings are tagged `heuristic` with confidence 0.6. With `--option telnet.strict=true` (or `--strict-heuristics`) they are not reported at all. On such connections a "typed" value that contains control bytes is binary protocol data, not keyboard input, and is not reported.
 
 ## IRC
 
@@ -179,13 +184,14 @@ Plugin `kerberos`. AS-REQ, AS-REP, TGS-REP and KRB-ERROR over UDP and TCP (recor
 | Finding | Kind | Risk | Tags |
 | --- | --- | --- | --- |
 | AS-REQ with encrypted-timestamp pre-authentication | `auth_event` "Kerberos pre-authentication (*etype*)" | high for DES, medium for RC4, low for AES | `weak-preauth-<etype>` for DES/RC4; `weak-etype-offered` if the client offers DES/RC4 |
-| AS-REP to a request without pre-authentication | `auth_event` "AS-REP issued without pre-authentication" | high | `no-preauth` |
+| AS-REQ with PKINIT (certificate) or FAST-armored pre-authentication | `auth_event` "Kerberos pre-authentication (PKINIT)" / "(FAST armored)" | low | `pkinit` or `fast`; `anonymous` for `WELLKNOWN/ANONYMOUS` |
+| AS-REP to a request without any pre-authentication | `auth_event` "AS-REP issued without pre-authentication" | high | `no-preauth` |
 | TGS-REP with a DES/RC4 service ticket | `auth_event` "service ticket for *service* issued with *etype*" | per etype | `weak-service-ticket` |
 | KRB-ERROR: pre-authentication failed (24), unknown principal (6), account expired (1), account disabled or locked out (18), password expired (23) | `auth_result` | info | `extra.outcome = "failure"`, `extra.error_code` |
 
 Encryption types: `des-cbc-crc` (1), `des-cbc-md5` (3), `aes128-cts-hmac-sha1-96` (17), `aes256-cts-hmac-sha1-96` (18), `aes128-cts-hmac-sha256-128` (19), `aes256-cts-hmac-sha384-192` (20), `rc4-hmac` (23), `rc4-hmac-exp` (24). DES and `rc4-hmac-exp` are high risk, `rc4-hmac` medium.
 
-The principal is in `username` and the realm in `domain`. `extra` carries `preauth_etype`, `offered_etypes`, `service`, `ticket_etype` as relevant.
+The principal is in `username` and the realm in `domain`. `extra` carries `preauth_etype` (or `preauth` for PKINIT/FAST), `offered_etypes`, `service`, `ticket_etype` as relevant. Other KRB-ERROR codes, such as 14 (no key for the offered encryption types), are not login results.
 
 ## SNMP
 
@@ -227,7 +233,7 @@ Plugin `mysql`. MySQL and MariaDB: server greeting, HandshakeResponse41, AuthSwi
 | `COM_CHANGE_USER` on an open connection | `auth_event` "MySQL change user (*plugin*)", then its own result | as for a login | `change-user` |
 | OK / ERR during authentication | `auth_result` | info | `extra.error_code` on failure |
 
-Pre-4.1 logins are reported as events (the wire field is a scramble). TLS (SSL request) ends parsing unless decrypted. After a successful login the plugin follows the command phase only to catch `COM_CHANGE_USER`: only packets with sequence id 0 are read as commands, so `LOAD DATA` contents and continuation packets are never mistaken for one. Queries are not looked at, and packets over 64 KiB are skipped. A capture gap ends parsing, and so does the compressed protocol (`CLIENT_COMPRESS`), whose framing changes after the login.
+Pre-4.1 logins are reported as events (the wire field is a scramble). TLS (SSL request) ends parsing unless decrypted. After a successful login the plugin follows the command phase only to catch `COM_CHANGE_USER`: only packets with sequence id 0 are read as commands, so `LOAD DATA` contents and continuation packets are never mistaken for one. Queries are not looked at, and packets over 64 KiB are skipped. The compressed protocol (`CLIENT_COMPRESS`), whose framing changes after the login, ends parsing. A capture gap during the first login ends parsing; after it, the plugin resumes at the next client segment that starts with a command (sequence id 0) and the next server segment made of whole packets with consecutive sequence ids, so a later `COM_CHANGE_USER` is still found.
 
 ## PostgreSQL
 
@@ -241,7 +247,7 @@ Plugin `postgres`. StartupMessage, authentication requests, PasswordMessage.
 | `AuthenticationOk` without any challenge (trust) | `auth_event` "PostgreSQL login without password (trust)" | high | `no-authentication` |
 | result | `auth_result` | info | `extra.sqlstate` on failure |
 
-The user and database come from the StartupMessage. Kerberos/GSS/SSPI produce no event of their own; a following AuthenticationOk is reported as success. An SSLRequest answered `S` ends parsing unless decrypted.
+The user and database come from the StartupMessage. Kerberos/GSS/SSPI produce no event of their own; a following AuthenticationOk is reported as success. An SSLRequest answered `S` ends parsing unless decrypted. After a capture gap the plugin resumes at the next segment made of whole messages. If the gap was on the server side, an AuthenticationOk is reported as a plain success, not as trust, because the lost bytes may have held an authentication request; a password message after a lost request is not reported.
 
 ## MSSQL
 
@@ -270,7 +276,7 @@ Plugin `oracle`. Oracle Net (TNS) CONNECT, ACCEPT, REFUSE and DATA packets.
 | native network encryption | `auth_event` "Oracle login (native network encryption)" | info | `encrypted`, `ano-encryption` |
 | login result | `auth_result` | info | `extra.error_code` (for example ORA-01017) |
 
-Only allow-listed client attributes of the AUTH request are read (terminal, program, machine, PID, OS user). `AUTH_SESSKEY`, `AUTH_PASSWORD`, `AUTH_VFR_DATA` and every other `AUTH_*` value are never read into a finding. The username is taken heuristically from the TTI layout, which varies between client libraries; an AUTH request split across several TNS DATA packets may be missed.
+Only allow-listed client attributes of the AUTH request are read (terminal, program, machine, PID, OS user). `AUTH_SESSKEY`, `AUTH_PASSWORD`, `AUTH_VFR_DATA` and every other `AUTH_*` value are never read into a finding. The username is taken heuristically from the TTI layout, which varies between client libraries. TTI messages carry no length of their own, so the client's DATA packets are collected until the server answers (or the connection ends) and scanned as one request: an AUTH request split across several DATA packets is found, and the finding points at the request's last packet.
 
 ## Redis
 
@@ -295,7 +301,7 @@ Plugin `mqtt`. MQTT 3.1, 3.1.1 and 5.
 | CONNECT with a username only | `username` | info |
 | CONNACK | `auth_result` | info |
 
-`extra`: `client_id`, `protocol_level`, `return_code`. Results are reported only when the CONNECT carried a username. Return codes 4/5 (v3.1/3.1.1) and 0x86/0x87 (v5) are failures. MQTT over WebSocket is not handled.
+`extra`: `client_id`, `protocol_level`, `return_code`. Results are reported only when the CONNECT carried a username. Return codes 4/5 (v3.1/3.1.1) and 0x86/0x87 (v5) are failures. Client bytes lost after the CONNECT do not stop the plugin from reading the CONNACK. MQTT over WebSocket is not handled.
 
 ## SIP
 
@@ -307,7 +313,7 @@ Plugin `sip`. SIP over UDP and TCP.
 | `Authorization`/`Proxy-Authorization: Digest` | `auth_event` "SIP Digest authentication (*method*)" | medium | `digest` |
 | final response to an authenticated request | `auth_result` "SIP authentication succeeded/failed" | info | |
 
-Digest events report user, realm, method, URI and algorithm (MD5 when absent, as the RFC specifies); nonces and responses are never read. Each (user, realm) is reported once per conversation. LF-only line endings and SIP over TLS (5061) are not supported.
+Digest events report user, realm, method, URI and algorithm (MD5 when absent, as the RFC specifies); nonces and responses are never read. Each (user, realm) is reported once per conversation. Over TCP, after a capture gap the plugin skips to the next SIP request or status line; a response only counts as a result if its Call-ID and CSeq match a request that carried credentials. LF-only line endings and SIP over TLS (5061) are not supported.
 
 ## VNC
 
@@ -389,9 +395,9 @@ Plugin `secrets`, protocol label `Cleartext`. Scans every cleartext TCP stream, 
 | `stripe_secret_key` | `sk_live_`/`rk_live_` keys |
 | `pem_private_key` | `-----BEGIN ... PRIVATE KEY-----` blocks |
 
-All are `api_key` findings, at high risk unless noted. The token goes in `secret`, so `--mask` covers it. PEM blocks are reported by type and length only ("PEM RSA PRIVATE KEY block (1679 bytes)"); the key body is never kept.
+All are `api_key` findings, at high risk unless noted. The token goes in `secret`. PEM blocks are reported by type and length only ("PEM RSA PRIVATE KEY block (1679 bytes)"); the key body is never kept.
 
-Scanning uses a sliding window, so tokens split across segments are found. It is capped at 1 MiB per direction per connection, skips connections that start with a TLS record, and resets at capture gaps. Each token is reported once per connection. JWTs are left to `http`. The same API key sent over HTTP can be reported twice, once by `http` (protocol HTTP) and once by `secrets` (protocol Cleartext).
+Scanning uses a sliding window, so tokens split across segments are found. It is capped at 1 MiB per direction per connection, skips connections that start with a TLS record, and resets at capture gaps. Each token is reported once per connection. JWTs are left to `http`. An API key that `http` also reports in the same connection is reported once (see *One secret, one finding* above).
 
 ## Keyvalue
 
@@ -402,4 +408,4 @@ Plugin `keyvalue`, protocol label `Cleartext`. A heuristic that keeps the origin
 | a password field, with a user field on the same line | `credential` | medium | 0.5 |
 | a password field alone | `password` | medium | 0.5 |
 
-Field names are the same as the HTTP form fields. Streams that start like HTTP are skipped (the `http` plugin parses them properly). `extra.pattern` shows which fields matched. Disable with `--disable keyvalue` or `--strict-heuristics`.
+Field names are the same as the HTTP form fields. Streams that start like HTTP are skipped (the `http` plugin parses them properly). `extra.pattern` shows which fields matched. Template and masked values are not secrets and are skipped: `****`, `xxxx` (four or more), `%s`, `%(name)s`, `${VAR}`, an all-capitals `$VAR`, `{{ var }}`, `<password>`, `[REDACTED]`, `null`, `none`, `nil`, `undefined`, and empty quotes. Values such as `$Secret1` or `xx` are reported. A real value later on the same line is still reported. Disable with `--disable keyvalue` or `--strict-heuristics`.

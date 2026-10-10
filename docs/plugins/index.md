@@ -6,7 +6,7 @@ Everything netcreds-ng detects or writes is a plugin. The 23 protocol parsers, t
 | --- | --- | --- | --- |
 | Protocol | `ProtocolPlugin` | inspect reassembled TCP streams and UDP datagrams; emit findings | `ftp`, `http`, `kerberos` |
 | Enricher | `EnricherPlugin` | annotate findings (tags, risk) and raise new ones, before outputs | `analytics`, `detection` |
-| Sink | `SinkPlugin` | write findings somewhere | `jsonl`, `html`, `webhook` |
+| Sink | `SinkPlugin` | write findings somewhere | `jsonl`, `sqlite`, `webhook` |
 
 The API is versioned: **plugin API 1** (`netcreds_ng.plugins.api.PLUGIN_API`). A plugin whose `api_version` differs is refused at load time with a message in `--list-plugins`.
 

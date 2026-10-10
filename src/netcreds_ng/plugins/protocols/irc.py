@@ -27,6 +27,7 @@ class _State:
 
 class IRCPlugin(ProtocolPlugin):
     name = "irc"
+    sets = ("chat", "legacy")
     description = "IRC PASS, NICK, NickServ IDENTIFY and SASL PLAIN (any port)"
     default_ports = frozenset({6667, 6697, 194})
     priority = 40

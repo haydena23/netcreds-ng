@@ -41,7 +41,7 @@ Points to know:
 - Options come from `--option <name>.key=value` or `[plugins.<name>]`, in `self.options`.
 - Exceptions are caught, counted as `enricher:<name>` errors, and the finding continues to the other enrichers and the outputs.
 - `opt_in = True` disables the enricher unless it is enabled explicitly.
-- Use `Kind.ALERT` for behavioural detections, and set `extra["detection"]`; the console summary and HTML report list alerts from the `detection` enricher's summary, but every output receives your alert findings.
+- Use `Kind.ALERT` for behavioural detections, and set `extra["detection"]`; the console summary lists alerts from the `detection` enricher's summary, but every output receives your alert findings.
 
 ## Sinks
 
@@ -101,15 +101,13 @@ $ cat counts.json
 
 | Key | Value |
 | --- | --- |
-| `mask` | true when `--mask` (or `[output] mask`) is set: mask secrets with `netcreds_ng.output.masking.masked(finding)` |
 | `summary` | a callable returning `Session.summary()`: analytics, alerts, services, host scores |
 | `source_label` | the capture paths or interface name |
 
 ### Guidelines
 
-- **Respect masking.** Call `masked(finding)` before writing when `self.options.get("mask")` is true. A sink that sends data over the network should mask by default and offer an `include_secrets` option, like the built-in webhook and syslog outputs.
 - **Network sinks are opt-in by nature.** A sink only runs when the user names it, but keep it that way: never enable one from a default configuration.
-- **Do not modify the finding.** Every sink receives the same object; use `dataclasses.replace()` or `masked()` to make a changed copy.
+- **Do not modify the finding.** Every sink receives the same object; use `dataclasses.replace()` to make a changed copy.
 - **Be robust.** An exception in `write()` is counted as a `sink:<name>` error and the run continues, but the finding is lost for your sink.
 
 ### Per-packet sinks

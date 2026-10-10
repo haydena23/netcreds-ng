@@ -55,14 +55,16 @@ def encrypted_data(etype: int, size: int = 52) -> bytes:
 # --- Kerberos -----------------------------------------------------------------
 
 
-def as_req(user: str, realm: str, preauth_etype: int | None = 23, offered: tuple[int, ...] = (18, 17, 23)) -> bytes:
-    padata = b""
+def as_req(user: str, realm: str, preauth_etype: int | None = 23, offered: tuple[int, ...] = (18, 17, 23),
+           pa_types: tuple[int, ...] = ()) -> bytes:  # fmt: skip
+    """An AS-REQ; ``pa_types`` adds PA-DATA entries of those types with placeholder values (e.g. 16 PKINIT)."""
+    pas = [seq(ctx(1, der_int(t)), ctx(2, der_octets(b"\xee" * 16))) for t in pa_types]
     if preauth_etype is not None:
-        pa = seq(ctx(1, der_int(2)), ctx(2, der_octets(encrypted_data(preauth_etype))))
-        padata = ctx(3, seq(pa))
+        pas.append(seq(ctx(1, der_int(2)), ctx(2, der_octets(encrypted_data(preauth_etype)))))
+    padata = ctx(3, seq(*pas)) if pas else b""
     body = seq(
         ctx(0, tlv(0x03, b"\x00\x40\x81\x00\x10")),
-        ctx(1, principal(1, user)),
+        ctx(1, principal(1, *user.split("/"))),
         ctx(2, der_gstr(realm)),
         ctx(3, principal(2, "krbtgt", realm)),
         ctx(5, tlv(0x18, b"20370913024805Z")),
@@ -80,7 +82,7 @@ def _ticket(realm: str, service: tuple[str, ...], etype: int) -> bytes:
 def kdc_rep(app: int, user: str, realm: str, service: tuple[str, ...], ticket_etype: int = 18) -> bytes:
     msg_type = 11 if app == 0x6B else 13
     return tlv(app, seq(
-        ctx(0, der_int(5)), ctx(1, der_int(msg_type)), ctx(3, der_gstr(realm)), ctx(4, principal(1, user)),
+        ctx(0, der_int(5)), ctx(1, der_int(msg_type)), ctx(3, der_gstr(realm)), ctx(4, principal(1, *user.split("/"))),
         ctx(5, _ticket(realm, service, ticket_etype)), ctx(6, encrypted_data(ticket_etype, 40)),
     ))  # fmt: skip
 

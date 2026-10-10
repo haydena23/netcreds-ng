@@ -43,6 +43,8 @@ class _State:
     reported: set[tuple[str, ...]] = field(default_factory=set)
     #: (call-id, cseq) -> (user, realm) for requests that carried credentials.
     pending: dict[tuple[bytes, bytes], tuple[str | None, str | None]] = field(default_factory=dict)
+    started: bool = False  # a complete SIP message was seen on this TCP connection
+    resync: list[bool] = field(default_factory=lambda: [False, False])  # after a gap, per direction (E-5)
 
 
 def _parse_head(data: bytes) -> _Msg | None:
@@ -95,6 +97,7 @@ def _digest_params(value: bytes) -> dict[str, str]:
 
 class SIPPlugin(ProtocolPlugin):
     name = "sip"
+    sets = ("voip",)
     description = "SIP over UDP/TCP: Basic credentials, Digest authentication metadata, auth results"
     transports = frozenset({Transport.UDP, Transport.TCP})
     default_ports = frozenset({5060})
@@ -110,10 +113,38 @@ class SIPPlugin(ProtocolPlugin):
         if msg is not None:
             self._message(ctx, direction, msg)
 
+    def on_gap(self, ctx: Context, direction: Direction, size: int) -> None:
+        st: _State = ctx.state
+        if not st.started:
+            ctx.detach()  # not yet known to be SIP: nothing to resynchronise to
+            return
+        # E-5: long-lived SIP-over-TCP connections (trunks, phones) resume at the next start line.
+        st.buffers[direction].clear()
+        st.resync[direction] = True
+
+    def _resync(self, buf: bytearray) -> bool:
+        """Drop bytes up to the first complete line that starts a SIP message; False if none yet."""
+        pos = 0
+        while True:
+            eol = buf.find(b"\r\n", pos)
+            if eol < 0:
+                del buf[:pos]  # keep the incomplete last line
+                if len(buf) > _MAX_HEADER:
+                    buf.clear()
+                return False
+            if self._looks_sip(bytes(buf[pos:eol])):
+                del buf[:pos]
+                return True
+            pos = eol + 2
+
     def on_data(self, ctx: Context, direction: Direction, data: bytes) -> None:
         st: _State = ctx.state
         buf = st.buffers[direction]
         buf += data
+        if st.resync[direction]:
+            if not self._resync(buf):
+                return
+            st.resync[direction] = False
         while buf and not ctx.detached:
             if buf[:1] in (b"\r", b"\n"):  # keep-alive CRLFs between messages
                 del buf[0]
@@ -138,6 +169,7 @@ class SIPPlugin(ProtocolPlugin):
             if len(buf) < total:
                 return
             del buf[:total]
+            st.started = True
             self._message(ctx, direction, msg)
 
     @staticmethod

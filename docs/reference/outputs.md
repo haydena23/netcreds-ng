@@ -2,18 +2,19 @@
 
 Every output receives the same findings, after de-duplication and enrichment (analytics, detection). Outputs can be combined freely. Network outputs (webhook, syslog) never run unless you request them.
 
-| Option | Format | Writing | Secrets |
-| --- | --- | --- | --- |
-| `--jsonl PATH` | one JSON object per finding | appends, flushed per finding | full unless `--mask` |
-| `--csv PATH` | CSV with a header row | appends; header only for a new or empty file | full unless `--mask` |
-| `--log PATH` | human-readable lines | appends | full unless `--mask` |
-| `--sqlite PATH` | SQLite `runs` and `findings` tables | adds one run | full unless `--mask` |
-| `--cef PATH` | ArcSight CEF lines | appends | full unless `--mask` |
-| `--html PATH` | self-contained audit report | rewritten at the end of the run | masked unless `html.include_secrets=true` |
-| `--evidence PATH` | pcapng of the packets behind each finding | rewritten at the end of the run | never masked (raw packets) |
-| `--webhook URL` | JSON or chat message over HTTP(S) | batched | masked unless `webhook.include_secrets=true` |
-| `--syslog URL` | RFC 5424 syslog, CEF or JSON body | per finding | masked unless `syslog.include_secrets=true` |
-| `--summary-json PATH` | run summary: counters, capture health, analytics | written at the end of the run | none included |
+| Option | Format | Writing |
+| --- | --- | --- |
+| `--jsonl PATH` | one JSON object per finding | appends, flushed per finding |
+| `--csv PATH` | CSV with a header row | appends; header only for a new or empty file |
+| `--log PATH` | human-readable lines | appends |
+| `--sqlite PATH` | SQLite `runs` and `findings` tables | adds one run |
+| `--cef PATH` | ArcSight CEF lines | appends |
+| `--evidence PATH` | pcapng of the packets behind each finding | rewritten at the end of the run |
+| `--webhook URL` | JSON or chat message over HTTP(S) | batched |
+| `--syslog URL` | RFC 5424 syslog, CEF or JSON body | per finding |
+| `--summary-json PATH` | run summary: counters, capture health, analytics (no findings) | written at the end of the run |
+
+Every output records findings as seen, secrets included; treat output files and destinations like the capture they came from.
 
 `-` as PATH writes to standard output for `jsonl`, `csv`, `log` and `cef`. Any output, including third-party ones, can also be selected with `-o FORMAT:PATH`. Output options are set with `--option <output>.<key>=<value>` or in an `[output.<name>]` table; see [plugin options](plugin-options.md#outputs).
 
@@ -97,7 +98,7 @@ CREATE INDEX idx_findings_hosts ON findings(src_ip, dst_ip);
 ```
 
 - Each run adds a `runs` row. `started`, `updated` and `finished` are Unix times; `source` is the capture file(s) or interface; `stats` is a JSON object with every run counter (the same counters as `--summary-json`, with raw timestamps). `finished` stays empty while the run is going, or if it never ended cleanly.
-- The database uses WAL journaling and is committed about once a second while findings arrive, together with the run's counters. Other programs, and [`--attach`](../guide/dashboard.md#background-capture-and-attach), can read it during the run. Option `commit_interval` (seconds, default 1) changes how often.
+- The database uses WAL journaling and is committed about once a second while findings arrive, together with the run's counters. Other programs can read it during the run. Option `commit_interval` (seconds, default 1) changes how often.
 - Databases made by earlier versions get the four new `runs` columns added the next time a run writes to them.
 - `ts` is the capture time as a Unix timestamp; `tags` is comma-separated; `extra` is a JSON object.
 - The database can be reused across runs, which gives you a history to compare. Example queries are in the [recipes](../guide/recipes.md#keep-a-queryable-history).
@@ -116,7 +117,7 @@ Severity: info 1, low 3, medium 6, high 9. Extensions:
 | `src`, `spt`, `dst`, `dpt` | endpoints |
 | `app` | protocol |
 | `suser` | `domain\user` or user |
-| `msg` | the display value, at most 1023 characters (masked when masking applies) |
+| `msg` | the display value, at most 1023 characters |
 | `cs1` (label `tags`) | tags, comma separated |
 | `cs2` (label `plugin`) | plugin |
 | `cn1` (label `frame`) | frame number |
@@ -126,8 +127,8 @@ Header values escape `\` and `|`; extension values escape `\`, `=`, carriage ret
 ## Syslog
 
 ```bash
-netcreds-ng -i eth0 --no-tui --syslog udp://siem.example:514
-netcreds-ng -i eth0 --no-tui --syslog tcp://siem.example:514 --option syslog.format=json
+netcreds-ng -i eth0 --syslog udp://siem.example:514
+netcreds-ng -i eth0 --syslog tcp://siem.example:514 --option syslog.format=json
 ```
 
 - RFC 5424 messages: facility local0, APP-NAME `netcreds-ng`, MSGID set to the finding kind, timestamp set to the capture time.
@@ -139,7 +140,6 @@ netcreds-ng -i eth0 --no-tui --syslog tcp://siem.example:514 --option syslog.for
 | --- | --- | --- |
 | `format` | `cef` | `cef` or `json` body |
 | `min_risk` | `low` | findings below this are not sent |
-| `include_secrets` | `false` | send secrets unmasked |
 | `hostname` | the local host name | HOSTNAME field |
 | `timeout` | 5 | TCP connect timeout in seconds |
 
@@ -147,7 +147,7 @@ netcreds-ng -i eth0 --no-tui --syslog tcp://siem.example:514 --option syslog.for
 
 ```bash
 netcreds-ng -p cap.pcap --webhook https://example.invalid/hooks/netcreds
-netcreds-ng -i eth0 --no-tui --webhook https://hooks.slack.com/services/... --webhook-format slack
+netcreds-ng -i eth0 --webhook https://hooks.slack.com/services/... --webhook-format slack
 ```
 
 Findings at `min_risk` or above are collected and POSTed as JSON in batches of `batch`, and at the end of the run.
@@ -159,37 +159,16 @@ Findings at `min_risk` or above are collected and POSTed as JSON in batches of `
 | `discord` | `{"content": "**netcreds-ng: N new findings**\n```...```"}` |
 | `teams` | `{"text": "**netcreds-ng: N new findings**\n\n..."}` |
 
-Chat formats send one line per finding: `[HIGH] FTP credential 192.0.2.10:50000 → 198.51.100.20:21: fakeuser:F**********3 (12)`.
+Chat formats send one line per finding: `[HIGH] FTP credential 192.0.2.10:50000 → 198.51.100.20:21: fakeuser:FakePass-123`.
 
 | Option | Default | Meaning |
 | --- | --- | --- |
 | `format` | `generic` | `generic`, `slack`, `teams` or `discord` (also `--webhook-format`) |
 | `min_risk` | `medium` | findings below this are not sent |
 | `batch` | 20 | findings per request |
-| `include_secrets` | `false` | send secrets unmasked |
 | `timeout` | 5 | request timeout in seconds |
 
 A failed delivery is reported as a `sink:webhook` error; that batch is not retried.
-
-## HTML report
-
-A single file with no external resources, readable offline and printable ("Save as PDF" in a browser gives a PDF). It follows the system light/dark preference. It contains:
-
-- an executive summary written from the numbers in the report;
-- headline counts by risk;
-- an activity timeline;
-- alerts;
-- the service inventory: which servers exposed cleartext secrets, to how many clients, with login successes and failures;
-- accounts seen on several services;
-- host exposure with the 0–100 score;
-- every finding, and any analysis warnings.
-
-| Option | Default | Meaning |
-| --- | --- | --- |
-| `include_secrets` | `false` | show secrets unmasked |
-| `include_browsing` | `false` | include URL, POST and search findings |
-
-The dashboard's ++h++ key writes the same report, unmasked unless masking is on in the dashboard.
 
 ## Evidence pcapng
 
@@ -265,4 +244,4 @@ PUT _ingest/pipeline/netcreds-ng
 }
 ```
 
-Ship the JSON Lines file with Filebeat (a `filestream` input with an `ndjson` parser) or Elastic Agent, setting `pipeline: netcreds-ng`. The `remove` processor shows one way to keep secrets out of the index even when the file holds them. Simpler still, write the file with `--mask`.
+Ship the JSON Lines file with Filebeat (a `filestream` input with an `ndjson` parser) or Elastic Agent, setting `pipeline: netcreds-ng`. The `remove` processor shows one way to keep secrets out of the index even though the file holds them.

@@ -1,1 +1,1 @@
-"""Presentation helpers (console rendering, masking)."""
+"""Presentation helpers (console rendering, output formats)."""

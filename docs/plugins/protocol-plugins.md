@@ -84,7 +84,8 @@ Your plugin's options are on `self.options` (a dict from `--option acme.key=valu
 | `transports` | `{Transport.TCP}` | `TCP`, `UDP` or both |
 | `default_ports` | empty | port hints: help the engine decide which side is the server |
 | `ports_only` | `False` | only offer connections that use one of `default_ports` |
-| `opt_in` | `False` | disabled unless `--enable <name>` or `--enable all` |
+| `opt_in` | `False` | left out of the default selection; runs when named (`-P`, `--enable`, a set) or with `all` |
+| `sets` | `()` | [plugin sets](../guide/choosing-plugins.md) it belongs to, e.g. `("databases",)`; may name new sets. Set names must not clash with plugin names |
 | `priority` | 100 | order among plugins on a connection; lower runs first. Built-ins use 10–210 |
 
 ## Emitting findings

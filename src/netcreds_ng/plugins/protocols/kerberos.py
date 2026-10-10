@@ -23,6 +23,11 @@ ETYPES = {
 WEAK = {1: "high", 3: "high", 23: "medium", 24: "high"}
 APP_TAGS = {0x6A: "AS-REQ", 0x6B: "AS-REP", 0x6C: "TGS-REQ", 0x6D: "TGS-REP", 0x7E: "KRB-ERROR"}
 PA_ENC_TIMESTAMP = 2
+#: Pre-authentication that does not use PA-ENC-TIMESTAMP: PKINIT (RFC 4556; 14 is the pre-RFC
+#: draft form) and a FAST armor (RFC 6113), which hides the inner pre-auth data.
+PA_PKINIT = {16: "PKINIT", 14: "PKINIT"}
+PA_FX_FAST = 136
+ANONYMOUS = "WELLKNOWN/ANONYMOUS"  # RFC 8062
 ERR_PREAUTH_FAILED = 24
 ERR_PREAUTH_REQUIRED = 25
 ERR_C_PRINCIPAL_UNKNOWN = 6
@@ -63,6 +68,7 @@ class _State:
 
 class KerberosPlugin(ProtocolPlugin):
     name = "kerberos"
+    sets = ("directory", "legacy")
     description = "Kerberos principals, pre-auth encryption types, no-preauth accounts, failures (UDP/TCP)"
     transports = frozenset({Transport.UDP, Transport.TCP})
     default_ports = frozenset({88})
@@ -132,6 +138,7 @@ class KerberosPlugin(ProtocolPlugin):
             return  # service ticket requests are reported via the TGS-REP encryption type
         st.last_principal = (cname, realm)
         preauth_etype = None
+        other_preauth = None
         padata_w = body.child(3)
         if padata_w is not None:
             for pa in padata_w.inner().children():
@@ -141,9 +148,23 @@ class KerberosPlugin(ProtocolPlugin):
                     if value is not None:
                         enc = read_tlv(value.inner().value)
                         preauth_etype = _int(enc.child(0))
+                elif ptype in PA_PKINIT:
+                    other_preauth = PA_PKINIT[ptype]
+                elif ptype == PA_FX_FAST and other_preauth is None:
+                    other_preauth = "FAST armored"
         weak_offered = sorted({etype_name(e) for e in offered if e in WEAK})
         extra = {"realm": realm, "service": sname, "offered_etypes": [etype_name(e) for e in offered]}
         tags = ["weak-etype-offered"] if weak_offered else []
+        if preauth_etype is None and other_preauth is not None:
+            # Not a no-preauth AS-REP: the KDC answers a certificate or armored request.
+            if cname == ANONYMOUS:
+                tags.append("anonymous")
+            self._emit(ctx, direction, Kind.AUTH_EVENT, username=cname, domain=realm,
+                       value=f"Kerberos pre-authentication ({other_preauth})", risk="low",
+                       tags=[*tags, "pkinit" if other_preauth == "PKINIT" else "fast"],
+                       extra={**extra, "preauth": other_preauth})  # fmt: skip
+            st.pending_no_preauth.pop(f"{cname}@{realm}", None)
+            return
         if preauth_etype is None:
             st.pending_no_preauth[f"{cname}@{realm}"] = (cname, realm)
             return

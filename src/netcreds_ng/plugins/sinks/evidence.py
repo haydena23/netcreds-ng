@@ -8,7 +8,7 @@ original frame number and the finding(s) it supports, so an auditor can open the
 in Wireshark and see exactly what crossed the wire.
 
 The file holds raw packets, cleartext secrets included: that is the evidence. Treat it
-like the capture it came from. ``--mask`` does not apply to packet bytes.
+like the capture it came from.
 
 Options: ``frames_per_flow`` (default 64), ``bytes_per_flow`` (default 512 KiB),
 ``after`` (default 16), ``max_flows`` (default 20000).

@@ -62,6 +62,17 @@ The report also lists, per capture, the findings by plugin, plugin errors, the [
   - HTTP/2: the only sample (TLS with a key log) fetches an image, so it decrypts but has nothing to report.
   - The `secrets` and `keyvalue` heuristics ran on every capture and reported nothing, so there were no false positives.
 
+## Re-check (M32, 2026-10-09)
+
+- **tshark identities:** 308 matched, 58 partial, 12 missed (was 56 / 14). The same 113 captures, 0 plugin errors, and the same capture-health verdicts. Only `zeek/krb/kinit.pcap` changed.
+- **Kerberos:**
+    - Anonymous PKINIT (`WELLKNOWN/ANONYMOUS`) is now reported, so two misses became partial matches (tshark shows the two name parts separately).
+    - A PKINIT login (`test_pkinit`) used to be flagged as an AS-REP without pre-authentication. That was a false positive, now fixed.
+    - The remaining Kerberos miss is error 14 (no key for the offered encryption types), which is deliberately not a login result.
+    - The partials are display differences: tshark splits multi-part principal names.
+- **SNMP (PROTOS):** an exact byte comparison against tshark's raw `snmp.community` field confirms that all 357 distinct communities in request PDUs are reported. The 54 partial and 10 missed rows come only from display decoding (tshark replaces invalid UTF-8 and stops at NUL bytes).
+- **No false positives:** `keyvalue` and `secrets` still report nothing on the corpus, and both `telnet` findings are real Telnet logins.
+
 ## Adding captures
 
 Add an entry to `tools/corpus.toml` with its `url`, `sha256`, `size`, `license`, the `plugins` it should exercise and optional `notes`. A key log is an entry with `kind = "keylog"`; a capture refers to it with `keylog = "<name>"`. Pin files from source repositories to a commit, never to a branch (a test checks this). Only use sources whose terms allow downloading for testing, and never commit the files.

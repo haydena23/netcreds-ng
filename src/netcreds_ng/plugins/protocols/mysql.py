@@ -47,6 +47,24 @@ class _State:
     caps: int = 0  # client capabilities from the HandshakeResponse (needed to parse COM_CHANGE_USER)
     logged_in: bool = False  # a login succeeded on this connection (later _AUTH phases are change-users)
     skip: list[int] = field(default_factory=lambda: [0, 0])  # bytes left of an oversized packet, per direction
+    resync: list[bool] = field(default_factory=lambda: [False, False])  # after a gap, per direction (E-5)
+
+
+def _client_packet_start(data: bytes) -> bool:
+    """Whether a segment after a gap starts with a command: sequence id 0 and a COM_* byte."""
+    return len(data) >= 5 and data[3] == 0 and int.from_bytes(data[0:3], "little") > 0 and data[4] <= 0x1F
+
+
+def _server_packets(data: bytes) -> bool:
+    """Whether a segment after a gap is a run of whole server packets with consecutive sequence ids."""
+    pos, seq = 0, None
+    while pos + 4 <= len(data):
+        length = int.from_bytes(data[pos : pos + 3], "little")
+        if not 0 < length <= _MAX_PACKET or (seq is not None and data[pos + 3] != (seq + 1) & 0xFF):
+            return False
+        seq = data[pos + 3]
+        pos += 4 + length
+    return pos == len(data) and seq is not None
 
 
 def _cstr(buf: bytes, pos: int) -> tuple[bytes, int] | None:
@@ -73,6 +91,7 @@ def _lenenc(buf: bytes, pos: int) -> tuple[int, int] | None:
 
 class MySQLPlugin(ProtocolPlugin):
     name = "mysql"
+    sets = ("databases",)
     description = "MySQL/MariaDB logins: cleartext passwords and login metadata (any port)"
     default_ports = frozenset({3306})
     priority = 90
@@ -81,11 +100,29 @@ class MySQLPlugin(ProtocolPlugin):
         return _State()
 
     # -- stream plumbing ---------------------------------------------------------------
+    def on_gap(self, ctx: Context, direction: Direction, size: int) -> None:
+        st: _State = ctx.state
+        if not st.logged_in:
+            ctx.detach()  # a gap inside the first login exchange: its state cannot be recovered
+            return
+        # After login the connection only matters for COM_CHANGE_USER: pick up again at the next
+        # segment that starts with a whole packet (data after a gap always begins a segment). The
+        # engine reports a gap late (when the peer acknowledges past it, or at close), so the
+        # plugin may already be inside a change-user exchange: its own checks still apply there.
+        d = int(direction)
+        st.bufs[d].clear()
+        st.skip[d] = 0
+        st.resync[d] = True
+
     def on_data(self, ctx: Context, direction: Direction, data: bytes) -> None:
         st: _State = ctx.state
+        d = int(direction)
+        if st.resync[d]:
+            if not (_client_packet_start(data) if direction is Direction.CLIENT_TO_SERVER else _server_packets(data)):
+                return  # mid-packet: wait for the next segment
+            st.resync[d] = False
         buf = st.bufs[direction]
         buf += data
-        d = int(direction)
         while not ctx.detached:
             if st.skip[d]:  # rest of an oversized command-phase packet
                 n = min(len(buf), st.skip[d])
@@ -130,7 +167,7 @@ class MySQLPlugin(ProtocolPlugin):
                 ctx.detach()  # compressed framing after login: commands cannot be read
                 return
             # Stay for the command phase: COM_CHANGE_USER re-authenticates on the same connection
-            # (seen in real captures). A capture gap still detaches the plugin.
+            # (seen in real captures). After a capture gap the plugin resynchronises (on_gap).
             st.phase = _COMMAND
         elif marker == 0xFF:
             code = struct.unpack_from("<H", payload, 1)[0] if len(payload) >= 3 else None

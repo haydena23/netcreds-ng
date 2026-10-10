@@ -85,10 +85,10 @@ Services exposing cleartext secrets
 Outputs can be combined freely:
 
 ```bash
-netcreds-ng -p tests/fixtures/synthetic/ --html report.html --jsonl findings.jsonl
+netcreds-ng -p tests/fixtures/synthetic/ --jsonl findings.jsonl --csv findings.csv
 ```
 
-- `report.html` is a self-contained audit report with an executive summary, timeline, service inventory and host scores. Secrets are masked in it by default.
+- `findings.csv` has the same findings as CSV, one row each.
 - `findings.jsonl` has one JSON object per finding:
 
 ```json
@@ -97,16 +97,13 @@ netcreds-ng -p tests/fixtures/synthetic/ --html report.html --jsonl findings.jso
 
 `frame` is the frame number in the capture, as Wireshark numbers it, so you can jump straight to the packet. See [outputs and integrations](../reference/outputs.md) for every format.
 
-## 5. Mask secrets before sharing
+## 5. Pick the plugins
 
 ```console
-$ netcreds-ng -p tests/fixtures/synthetic/http_form.pcap --mask
-16:13:20 INFO   HTTP      url        192.0.2.10 POST app.example.com/login
-16:13:20 HIGH   HTTP      credential 192.0.2.10:50009 > 198.51.100.20:8080 formuser:F************s (14)  #cleartext
-16:13:20 INFO   HTTP      post       192.0.2.10 username=formuser&password=F************s (14)&remember=1
+$ netcreds-ng -p tests/fixtures/synthetic/ -P file-transfer
 ```
 
-A masked value keeps its first and last character and its length. Secrets embedded in POST bodies, URLs and headers are masked too.
+Only the FTP plugin runs. `-P` takes plugin names and set names (`databases`, `web`, `remote-access`, `legacy`, ...); `--list-plugins` shows them all. See [choosing plugins](../guide/choosing-plugins.md).
 
 ## 6. See alerts: simulate a brute-force attack
 
@@ -157,5 +154,6 @@ See [alerts and analytics](../guide/detections.md) for every detection and its t
 ## Next steps
 
 - [Core concepts](concepts.md): what the kinds, risks and tags mean.
-- [Interactive dashboard](../guide/dashboard.md): `netcreds-ng -p capture.pcapng --tui`.
+- [Choosing plugins](../guide/choosing-plugins.md): `-P databases,ftp`, sets, and your own sets.
+- [Live table](../guide/live-table.md): `netcreds-ng -p capture.pcapng --tui`.
 - [Recipes](../guide/recipes.md): common tasks, from SIEM ingestion to CI gates.

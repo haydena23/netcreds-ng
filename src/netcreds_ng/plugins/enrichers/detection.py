@@ -91,21 +91,6 @@ class DetectionEnricher(EnricherPlugin):
 
     # enrichment ------------------------------------------------------------------------
 
-    def observe(self, finding: Finding) -> None:
-        """Account for an already-enriched finding without raising alerts.
-
-        Rebuilds the service inventory and host scores from stored findings (the dashboard's
-        ``--attach`` mode). Stored alerts of this plugin count towards host scores as they did
-        when they were raised.
-        """
-        if finding.kind is Kind.ALERT:
-            if finding.plugin == self.name and "detection" in finding.extra:
-                self.alerts.append(finding)
-                self._alert_points(finding)
-            return
-        if finding.kind not in (Kind.URL, Kind.SEARCH, Kind.POST):
-            self._inventory(finding)
-
     def enrich(self, finding: Finding) -> Iterator[Finding]:
         if finding.kind is Kind.ALERT:
             return iter(())

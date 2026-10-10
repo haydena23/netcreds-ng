@@ -26,6 +26,7 @@ class _State:
 
 class NTLMPlugin(ProtocolPlugin):
     name = "ntlm"
+    sets = ("directory", "legacy")
     description = "NTLM authentications (user, domain, workstation, NTLMv1/v2) in any TCP carrier"
     default_ports = frozenset({139, 445, 389, 1433, 135, 593, 3268})
     priority = 60

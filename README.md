@@ -1,29 +1,18 @@
 # netcreds-ng
 
-**Find the credentials and weak authentication your network is exposing.**
+**A blue-team network sniffer that prints the credentials crossing your wire.**
 
-netcreds-ng analyses packet captures or live traffic and reports every credential that crosses the wire in cleartext, along with authentication that is technically "protected" but weak (NTLMv1, Kerberos RC4/DES, SNMPv3 without authentication, RDP without NLA, VNC without a password...). It is a defensive auditing tool: it shows you the exposure so you can fix it. It does not crack anything.
+netcreds-ng watches live traffic or reads packet captures and reports every credential sent in cleartext, along with authentication that is technically "protected" but weak (NTLMv1, Kerberos RC4/DES, SNMPv3 without authentication, RDP without NLA, VNC without a password...). It shows you the exposure so you can fix it. It does not crack anything.
 
-It is the Python 3 successor of Dan McInerney's [net-creds](https://github.com/DanMcInerney/net-creds). It does everything the original did (verified by tests against the original's own output) and adds:
+It is the Python 3 port of Dan McInerney's [net-creds](https://github.com/DanMcInerney/net-creds). It does everything the original did (verified by tests against the original's own output) and builds on it:
 
-- **Real TCP stream reassembly.** Credentials split across packets, out-of-order or retransmitted segments, IPv4/IPv6 fragments (including jumbograms), any link type (Ethernet, VLAN, PPPoE, Linux cooked, loopback, raw IP). Streams picked up mid-connection, capture holes and connections with no handshake are handled.
-- **23 protocol plugins.** Port-agnostic detection, with login success and failure tracking. They include HTTP/2, RADIUS, TACACS+, MSSQL, Oracle, RDP and cloud API keys.
-- **TLS decryption** with a key-log file (`SSLKEYLOGFILE`) for traffic you are authorised to inspect, so plugins also see HTTPS, SMTPS, STARTTLS and the rest.
-- **Behavioural alerts.** Brute force, password spraying, one account attacked from many hosts, and a success after a burst of failures.
-- **Audit evidence.** A pcapng file holding exactly the packets behind each finding, annotated with Wireshark packet comments.
-- **An interactive dashboard**, plus JSON Lines, CSV, SQLite, CEF, syslog, HTML audit reports (with an executive summary), and webhooks for Slack, Teams and Discord.
-- **Risk analytics.** Weak passwords, password reuse across accounts and services, an inventory of services exposing cleartext secrets, and a 0–100 exposure score for each host.
-- **A plugin system** for new protocols, outputs and enrichers.
-- **Nothing dropped silently.** Parsing problems are counted and reported.
-
-## Documentation
-
-The full documentation (user guide, CLI and protocol reference, architecture, plugin development and API reference) is in [`docs/`](docs/index.md) and builds into a website with MkDocs:
-
-```bash
-pip install ".[docs]"
-mkdocs serve          # http://127.0.0.1:8000
-```
+- **Plugin based.** Each protocol is a plugin. Run all of them, only the ones you name, or named sets of them (`databases`, `web`, `remote-access`, `legacy`, ...), and define your own sets. Third-party plugins install like any Python package.
+- **23 protocol plugins.** Port-agnostic detection with login success and failure tracking, from the original's FTP, HTTP, mail, IRC, Telnet, SNMP, NTLM and Kerberos to LDAP, databases (MySQL, PostgreSQL, MSSQL, Oracle, Redis), RADIUS, TACACS+, RDP, VNC, SIP, MQTT, HTTP/2 and cloud API keys.
+- **Real TCP stream reassembly.** Credentials split across packets, out-of-order or retransmitted segments, IPv4/IPv6 fragments, any link type (Ethernet, VLAN, PPPoE, Linux cooked, loopback, raw IP), streams picked up mid-connection.
+- **TLS decryption** with a key-log file (`SSLKEYLOGFILE`) for traffic you are authorised to inspect.
+- **Login-attack alerts**: brute force, password spraying, one account attacked from many hosts, and a success after a burst of failures. Weak and reused passwords are tagged.
+- **Outputs** for keeping or forwarding what was seen: log, JSON Lines, CSV, SQLite, CEF, syslog, webhooks (Slack, Teams, Discord), and a pcapng of the packets behind each finding.
+- **Nothing dropped silently.** Parsing problems are counted and reported, and the run summary says how complete the capture was.
 
 ## Install
 
@@ -37,80 +26,109 @@ pip install ".[dev]"   # plus test/lint tools
 
 All dependencies are pure Python or ship prebuilt wheels: `rich`, `textual`, `scapy`, `psutil`, plus `cryptography` for `[tls]`. No compiler is needed.
 
-Live capture needs a packet-capture driver: **Npcap** on Windows, libpcap (usually preinstalled) on Linux/macOS. It also needs permission to capture: root (or `CAP_NET_RAW`) on Linux/macOS; on Windows a standard Npcap install lets any user capture. Typing just `netcreds-ng` captures on the default interface. Reading capture files needs neither. Live capture is **beta** in 2.0.0: it has not yet been validated on a real network, so for audits, capture to a file and analyse it with `-p`.
+Live capture needs a packet-capture driver: **Npcap** on Windows, libpcap (usually preinstalled) on Linux/macOS. It also needs permission to capture: root (or `CAP_NET_RAW`) on Linux/macOS; on Windows a standard Npcap install lets any user capture. Reading capture files needs neither. Live capture is **beta** in 2.0.0: it has not yet been validated on a real network.
 
 ## Usage
 
 ```bash
-netcreds-ng -p capture.pcapng                      # analyse a capture file
-netcreds-ng -p captures/ --html report.html        # a whole directory, plus an HTML audit report
-netcreds-ng -p captures/ -j 4                      # analyse up to 4 files in parallel
-netcreds-ng -p cap.pcap --jsonl findings.jsonl     # JSON Lines for a SIEM
-netcreds-ng -p cap.pcap --evidence proof.pcapng    # the packets behind every finding
+sudo netcreds-ng                                   # sniff the default interface
+sudo netcreds-ng -i eth0 -f 10.0.0.5               # a given interface, ignoring one host
+sudo netcreds-ng -i eth0 --tui                     # live table you can pause and filter
+netcreds-ng -p capture.pcapng                      # read a capture file
+netcreds-ng -p captures/ -j 4                      # a directory, up to 4 files in parallel
+netcreds-ng -p cap.pcap --jsonl findings.jsonl     # also write JSON Lines
 netcreds-ng -p cap.pcap --tls-keylog keys.log      # also look inside TLS sessions you hold keys for
-netcreds-ng -p cap.pcap --tui                      # browse results interactively
-netcreds-ng -p cap.pcap -q --summary-json -        # counters and capture health as JSON
-sudo netcreds-ng -i eth0                           # live dashboard
-sudo netcreds-ng -i eth0 --no-tui -f 10.0.0.5      # live, plain output, ignore a host
 netcreds-ng --legacy -p cap.pcap                   # exactly what the original net-creds printed
-netcreds-ng --list-plugins
+netcreds-ng --list-plugins                         # plugins and plugin sets
 netcreds-ng --list-interfaces
 ```
 
-Useful options:
+### Choosing plugins
+
+Without any selection, every built-in protocol plugin runs. To narrow it down:
+
+```bash
+netcreds-ng -i eth0 -P ftp,telnet                  # only these plugins
+netcreds-ng -i eth0 -P databases                   # only a set: MySQL, PostgreSQL, MSSQL, Oracle, Redis
+netcreds-ng -i eth0 -P legacy                      # what the original net-creds looked for
+netcreds-ng -i eth0 -P databases,remote-access,ftp # mix plugins and sets
+netcreds-ng -i eth0 --disable web,keyvalue         # everything except these
+netcreds-ng -i eth0 -P all                         # everything, opt-in plugins included
+```
+
+| Set | Plugins |
+| --- | --- |
+| `legacy` | what the original net-creds covered: ftp, http, irc, kerberos, keyvalue, mail, ntlm, snmp, telnet |
+| `web` | http, http2 |
+| `email` | mail (SMTP, POP3, IMAP) |
+| `file-transfer` | ftp |
+| `remote-access` | telnet, vnc, rdp |
+| `databases` | mysql, postgres, mssql, oracle, redis |
+| `directory` | ntlm, kerberos, ldap |
+| `aaa` | radius, tacacs |
+| `network` | snmp, radius, tacacs |
+| `chat`, `iot`, `voip` | irc; mqtt; sip |
+| `generic` | keyvalue, secrets (pattern scanners over any cleartext stream) |
+| `default`, `all` | every non-opt-in plugin; every plugin |
+
+Define your own sets in the configuration file and use them anywhere a set name works:
+
+```toml
+[plugins]
+select = ["office"]                 # like -P; -P on the command line overrides it
+
+[sets]
+office = ["email", "web", "ftp"]
+```
+
+`--list-plugins` shows every plugin, the sets it belongs to, and the resolved sets (yours included). Third-party plugins can join existing sets or declare new ones.
+
+### Useful options
 
 | Option | Effect |
 | --- | --- |
+| `-P`, `--plugins LIST` | run only these plugins and sets (comma separated) |
+| `--enable` / `--disable LIST` | add / remove plugins or sets; `--disable detection` turns off alerts |
 | `-v` | do not truncate long values on screen |
-| `--mask` | mask secrets on screen and in outputs (`P*******3 (9)`) |
-| `--no-browsing` | hide URL / POST / search findings |
+| `--no-browsing` | hide URL / POST / search findings on screen |
 | `--min-risk high` | only show high-risk findings on screen |
-| `--jsonl/--csv/--log/--sqlite/--html/--cef PATH` | outputs; repeat or combine freely; `-` writes to stdout |
-| `--evidence PATH` | pcapng with the packets behind each finding (raw packets, so secrets included) |
-| `--summary-json PATH` | run summary as JSON: counters, capture health, analytics (no secrets) |
-| `--webhook URL` | POST findings (medium risk and up, secrets masked) to an endpoint |
+| `--tui` | a live table with pause and filter instead of scrolling lines |
+| `--jsonl/--csv/--log/--sqlite/--cef PATH` | outputs; repeat or combine freely; `-` writes to stdout |
+| `--evidence PATH` | pcapng with the packets behind each finding |
+| `--summary-json PATH` | end-of-run counters, capture health and analytics as JSON |
+| `--webhook URL` | POST findings (medium risk and up) to an endpoint |
 | `--webhook-format slack\|teams\|discord` | send a chat message instead of the JSON findings |
-| `--syslog udp://host:514` | send findings to a syslog collector as CEF (secrets masked); `tcp://` also works |
+| `--syslog udp://host:514` | send findings to a syslog collector as CEF; `tcp://` also works |
 | `--tls-keylog FILE` | decrypt TLS sessions present in an NSS key-log file (needs `[tls]`) |
 | `-j N`, `--jobs N` | analyse up to N capture files in parallel |
 | `--dedup off\|run\|persistent` | duplicate suppression; `persistent` remembers across runs (`--dedup-db`) |
-| `--enable/--disable PLUGINS` | choose plugins; `--enable all` includes opt-in ones |
 | `--option http.cookies=all` | plugin options (e.g. `detection.bruteforce=10`) |
 | `--strict-heuristics` | fewer false positives: Telnet needs a Telnet port or option negotiation; disables `keyvalue` |
 | `--plugin-dir DIR` | load extra plugins from a directory |
 | `--strict` | exit code 3 if any parsing or plugin warning occurred |
 
-Network outputs (webhook, syslog) only run when you ask for them. Exit codes: `0` ok, `1` error, `2` usage, `3` warnings with `--strict`, `130` interrupted.
+Every output writes what was seen, secrets included. Network outputs (webhook, syslog) only run when you ask for them. Exit codes: `0` ok, `1` error, `2` usage, `3` warnings with `--strict`, `130` interrupted.
 
-See [docs/reference/outputs.md](docs/reference/outputs.md) for the output formats, the JSON fields, and Splunk/Elastic examples.
+See [docs/reference/outputs.md](docs/reference/outputs.md) for the output formats and JSON fields.
 
-### Interactive dashboard keys
+### Live table (`--tui`)
 
 | Key | Action |
 | --- | --- |
-| `/` | filter; supports `proto:ftp`, `risk:medium+`, `host:10.0.0.`, `user:admin`, `tag:weak`, `kind:alert`, and `-` to negate |
-| `Esc` | clear the filter and any drill-down |
-| `s` | session view: every finding of the selected connection |
-| `o` / `d` | drill down to the selected finding's source / destination host |
-| `Ctrl+S` / `f` | save the current filter / cycle through saved filters |
-| `r` | cycle the minimum risk |
-| `b` | hide browsing findings |
-| `m` | mask secrets |
-| `a` | analytics panel (alerts, host scores) |
+| `/` | filter: free text, or `proto:ftp`, `risk:medium+`, `host:10.0.0.`, `user:admin`, `tag:weak`, `kind:alert`; `-` negates |
+| `Esc` | clear the filter |
 | `p` | pause/resume |
-| `e` | export visible findings (JSONL) |
-| `h` | HTML report |
 | `q` | quit |
 
-The status bar shows packets per second, with a sparkline of recent throughput. Alerts pop up as notifications.
+The table follows new findings while the cursor is on the last row; move up to read and it stays put. The pane below shows every field of the highlighted finding.
 
 ### Configuration file
 
-Options can live in `./netcreds-ng.toml` or a user config file: `%APPDATA%\netcreds-ng\config.toml` on Windows, `~/.config/netcreds-ng/config.toml` elsewhere. Saved dashboard filters are kept next to it in `filters.json`.
+Options can live in `./netcreds-ng.toml` or a user config file: `%APPDATA%\netcreds-ng\config.toml` on Windows, `~/.config/netcreds-ng/config.toml` elsewhere.
 
 ```toml
 [plugins]
-enable = ["all"]
+select = ["databases", "remote-access", "ftp"]
 disable = ["keyvalue"]
 
 [plugins.http]
@@ -120,9 +138,10 @@ cookies = "all"        # session | all | off
 bruteforce = 10        # failed logins from one client to one service...
 window = 600           # ...within this many seconds
 
+[sets]
+mine = ["databases", "telnet"]
+
 [output]
-mask = true
-html = "report.html"
 jsonl = "findings.jsonl"
 tls_keylog = "keys.log"
 
@@ -130,9 +149,6 @@ tls_keylog = "keys.log"
 url = "https://hooks.slack.com/services/..."
 format = "slack"
 min_risk = "high"
-
-[output.syslog]
-url = "udp://siem.example:514"
 ```
 
 ## What it detects
@@ -168,7 +184,7 @@ Challenge/response schemes are reported as *events*: who authenticated, to what,
 - `targeted-account`: one account failing from many clients;
 - `login-after-failures`: a success after either of the first two.
 
-Thresholds are plugin options.
+Thresholds are plugin options. `--disable detection` turns alerts off; `--disable analytics` turns off the weak/reused password tags and host profiles.
 
 ## TLS decryption
 
@@ -178,11 +194,20 @@ Supported versions are TLS 1.2 (AES-GCM, ChaCha20-Poly1305, AES-CBC) and TLS 1.3
 
 ## Legacy mode
 
-`--legacy` reproduces the original net-creds byte for byte: the same coloured stdout lines and the same `credentials.txt` with its de-duplication. Use it if existing scripts parse the old output. Its parity with the original Python 2 tool is checked by the test suite against output recorded from the original.
+`--legacy` reproduces the original net-creds byte for byte: the same coloured stdout lines and the same `credentials.txt` with its de-duplication. Use it if existing scripts parse the old output. Its parity with the original Python 2 tool is checked by the test suite against output recorded from the original. Plugin selection does not apply to it.
 
 ## Plugins
 
-Plugins are Python classes. They are loaded from installed packages (entry point group `netcreds_ng.plugins`), from `--plugin-dir`, or from the user plugin directory. See [docs/plugins/](docs/plugins/index.md) for the API and a walkthrough, and [examples/netcreds-ng-example-plugin](examples/netcreds-ng-example-plugin) for an installable example.
+Plugins are Python classes. They are loaded from installed packages (entry point group `netcreds_ng.plugins`), from `--plugin-dir`, or from the user plugin directory. A protocol plugin names the sets it belongs to with a `sets` class attribute. See [docs/plugins/](docs/plugins/index.md) for the API and a walkthrough, and [examples/netcreds-ng-example-plugin](examples/netcreds-ng-example-plugin) for an installable example.
+
+## Documentation
+
+The full documentation (user guide, CLI and protocol reference, architecture, plugin development and API reference) is in [`docs/`](docs/index.md) and builds into a website with MkDocs:
+
+```bash
+pip install ".[docs]"
+mkdocs serve          # http://127.0.0.1:8000
+```
 
 ## Development
 
@@ -200,12 +225,12 @@ Synthetic fixtures use documentation IP ranges and obviously fake credentials. T
 
 ## Notes on output
 
-- **What `--mask` covers.** Every secret field is masked. So are secret-looking values embedded in free text: form and JSON fields named like passwords or tokens, `api_key=` query parameters, and `Authorization`/`Cookie` header lines. It does not try to recognise secrets in arbitrary prose. It cannot mask the evidence pcapng, which holds the original packets.
-- **Per-run fingerprints.** Password-reuse detection uses `secret_fingerprint`, a keyed hash with a fresh random key for each run. Fingerprints only correlate within a single run and cannot be used to test password guesses. As a result, JSONL/SQLite/HTML outputs differ between runs only in that field.
+- **Secrets are shown as seen**, on screen and in every output. Treat outputs like the capture they came from.
+- **Per-run fingerprints.** Password-reuse detection uses `secret_fingerprint`, a keyed hash with a fresh random key for each run. Fingerprints only correlate within a single run. As a result, JSONL/SQLite outputs differ between runs only in that field.
 - **Capture gaps.** If packets are missing, a plugin never stitches the bytes on either side of the gap into a credential. It skips the damaged line, resynchronises on the next message (LDAP, Redis), or stops analysing that connection. Gap counts appear in the run summary.
 - **Direction guessing.** When a connection has no handshake in the capture and both ports look alike, each plugin is offered both directions, and the first direction that produces a finding wins. The run summary counts these flows.
 - **Parallel files.** With `-j`, each file is analysed on its own. Without it, a connection can continue from one file into the next (rotated captures).
 
 ## Responsible use
 
-Only analyse traffic you are authorised to inspect. Captures, evidence files, key logs and outputs contain real credentials: store them securely, use `--mask` for reports you share, and delete what you no longer need.
+Only sniff traffic you are authorised to inspect. Captures, evidence files, key logs and outputs contain real credentials: store them securely and delete what you no longer need.

@@ -57,20 +57,14 @@ No options. Disable it with `--disable analytics`.
 
 ## Outputs
 
-Every output also receives `mask` (true with `--mask`). The file outputs, `sqlite` and `cef` honour it; `html`, `webhook` and `syslog` use `include_secrets` instead.
-
 | Output | Option | Default | Effect |
 | --- | --- | --- | --- |
-| `html` | `include_secrets` | `false` | show secrets unmasked |
-| `html` | `include_browsing` | `false` | include URL, POST and search findings |
 | `webhook` | `format` | `generic` | `generic`, `slack`, `teams`, `discord` |
 | `webhook` | `min_risk` | `medium` | lowest risk sent |
 | `webhook` | `batch` | 20 | findings per request |
-| `webhook` | `include_secrets` | `false` | send secrets unmasked |
 | `webhook` | `timeout` | 5 | seconds |
 | `syslog` | `format` | `cef` | `cef` or `json` body |
 | `syslog` | `min_risk` | `low` | lowest risk sent |
-| `syslog` | `include_secrets` | `false` | send secrets unmasked |
 | `syslog` | `hostname` | local host name | RFC 5424 HOSTNAME |
 | `syslog` | `timeout` | 5 | TCP connect timeout, seconds |
 | `evidence` | `frames_per_flow` | 64 | recent packets kept per connection |
@@ -78,4 +72,4 @@ Every output also receives `mask` (true with `--mask`). The file outputs, `sqlit
 | `evidence` | `after` | 16 | packets selected after each finding |
 | `evidence` | `max_flows` | 20000 | connections buffered at once |
 
-`jsonl`, `csv`, `log` and `cef` have no options besides `mask`. `sqlite` also takes `commit_interval` (seconds between commits while findings arrive, default 1).
+`jsonl`, `csv`, `log` and `cef` have no options. `sqlite` takes `commit_interval` (seconds between commits while findings arrive, default 1).

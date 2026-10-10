@@ -2,8 +2,7 @@
 
 The database uses WAL journaling and is committed at least every ``commit_interval``
 seconds (default 1) while findings arrive, together with a snapshot of the run's counters in
-``runs.stats``. Another process can therefore read it while the run is going:
-``netcreds-ng --attach DB`` opens the dashboard on it and follows new findings.
+``runs.stats``. Another process can therefore read it while the run is going.
 """
 
 from __future__ import annotations
@@ -14,7 +13,6 @@ import time
 from typing import Any
 
 from netcreds_ng.model import Finding, RunStats
-from netcreds_ng.output.masking import masked
 from netcreds_ng.plugins.api import SinkContext, SinkPlugin
 
 SCHEMA = """
@@ -62,7 +60,7 @@ class SqliteSink(SinkPlugin):
             raise ValueError("sqlite output needs a database path")
         self.stats = ctx.stats
         self.db = sqlite3.connect(self.target, check_same_thread=False)
-        self.db.execute("PRAGMA journal_mode=WAL")  # readers (--attach) never block the run
+        self.db.execute("PRAGMA journal_mode=WAL")  # readers never block the run
         self.db.executescript(SCHEMA)
         upgrade(self.db)
         source = str(self.options.get("source_label") or "")
@@ -74,7 +72,7 @@ class SqliteSink(SinkPlugin):
 
     def write(self, finding: Finding) -> None:
         assert self.db is not None
-        f = masked(finding) if self.options.get("mask") else finding
+        f = finding
         self.db.execute(
             "INSERT INTO findings(run_id, ts, frame, protocol, kind, risk, src_ip, src_port, dst_ip, dst_port,"
             " username, domain, secret, value, tags, plugin, extra) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",

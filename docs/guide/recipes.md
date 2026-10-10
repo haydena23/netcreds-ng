@@ -2,13 +2,15 @@
 
 Short answers to common tasks. Each links to the page with the details.
 
-## Produce a shareable audit report
+## Watch only the protocols you care about
 
 ```bash
-netcreds-ng -p captures/ --mask -q --html audit.html
+sudo netcreds-ng -i eth0 -P databases,remote-access     # database and remote-access logins only
+sudo netcreds-ng -i eth0 -P legacy                      # the original net-creds coverage
+sudo netcreds-ng -i eth0 --disable web                  # everything but HTTP
 ```
 
-The HTML report is a single file with no external resources. It masks secrets by default even without `--mask`; `--mask` also keeps them out of any other output in the same run. Print it from a browser ("Save as PDF") for a PDF. See [HTML report](../reference/outputs.md#html-report).
+See [choosing plugins](choosing-plugins.md) for the sets and how to define your own.
 
 ## Find which servers expose cleartext logins
 
@@ -16,17 +18,15 @@ The HTML report is a single file with no external resources. It masks secrets by
 netcreds-ng -p captures/ --no-browsing --min-risk high
 ```
 
-Read the **Services exposing cleartext secrets** table in the summary. For the full inventory, write `--html` or use the [Python API](detections.md#using-the-analysis-in-python).
+Read the **Services exposing cleartext secrets** table in the summary. For the full inventory, use `--summary-json` or the [Python API](detections.md#using-the-analysis-in-python).
 
 ## Hunt weak Windows authentication
 
 ```bash
-netcreds-ng -p dc-traffic.pcapng --no-browsing --min-risk medium
+netcreds-ng -p dc-traffic.pcapng -P directory --min-risk medium
 ```
 
-`--enable` only switches on opt-in plugins; it does not restrict the run to the plugins you name. To narrow a run, `--disable` what you do not need.
-
-Look for `#ntlmv1`, `#weak-preauth-rc4-hmac`, `#weak-service-ticket` and `#no-preauth`. In the dashboard, the filter `proto:ntlm tag:ntlmv1` or `proto:kerberos risk:medium+` does the same.
+Look for `#ntlmv1`, `#weak-preauth-rc4-hmac`, `#weak-service-ticket` and `#no-preauth`. In the live table (`--tui`), the filter `proto:ntlm tag:ntlmv1` or `proto:kerberos risk:medium+` does the same.
 
 With a SQLite output:
 
@@ -60,7 +60,7 @@ sys.exit(1 if exposed else 0)
 ```
 
 ```bash
-netcreds-ng -q -p test-run.pcapng --mask --strict --jsonl findings.jsonl && python gate.py findings.jsonl
+netcreds-ng -q -p test-run.pcapng --strict --jsonl findings.jsonl && python gate.py findings.jsonl
 ```
 
 `--strict` also fails the step (exit 3) if a plugin or capture error made the analysis incomplete. With `jq`:
@@ -74,7 +74,7 @@ jq -e -s 'map(select(.tags // [] | index("cleartext"))) | length == 0' findings.
 === "File + forwarder"
 
     ```bash
-    netcreds-ng -i eth0 --no-tui -q --jsonl /var/log/netcreds-ng/findings.jsonl
+    netcreds-ng -i eth0 -q --jsonl /var/log/netcreds-ng/findings.jsonl
     ```
 
     Ship the file with Splunk's universal forwarder, Filebeat or Elastic Agent. See the [Splunk](../reference/outputs.md#splunk) and [Elastic](../reference/outputs.md#elastic) examples.
@@ -82,11 +82,11 @@ jq -e -s 'map(select(.tags // [] | index("cleartext"))) | length == 0' findings.
 === "Syslog"
 
     ```bash
-    netcreds-ng -i eth0 --no-tui -q --syslog udp://siem.example:514
-    netcreds-ng -i eth0 --no-tui -q --syslog tcp://siem.example:6514 --option syslog.format=json
+    netcreds-ng -i eth0 -q --syslog udp://siem.example:514
+    netcreds-ng -i eth0 -q --syslog tcp://siem.example:6514 --option syslog.format=json
     ```
 
-    RFC 5424 with a CEF (default) or JSON body; secrets masked. See [Syslog](../reference/outputs.md#syslog).
+    RFC 5424 with a CEF (default) or JSON body; secrets included. See [Syslog](../reference/outputs.md#syslog).
 
 === "CEF file"
 
@@ -97,12 +97,12 @@ jq -e -s 'map(select(.tags // [] | index("cleartext"))) | length == 0' findings.
 ## Post alerts to Slack, Teams or Discord
 
 ```bash
-netcreds-ng -i eth0 --no-tui -q \
+netcreds-ng -i eth0 -q \
   --webhook https://hooks.slack.com/services/T000/B000/XXXX \
   --webhook-format slack --option webhook.min_risk=high
 ```
 
-Messages are batched (20 findings, or at the end of the run) and secrets are masked. See [Webhooks](../reference/outputs.md#webhooks).
+Messages are batched (20 findings, or at the end of the run) and include the secrets seen. See [Webhooks](../reference/outputs.md#webhooks).
 
 ## Hand evidence to the owner of a service
 
@@ -180,7 +180,7 @@ for f in found:
 print(session.stats.frames, "frames;", session.summary()["host_scores"])
 ```
 
-`SessionConfig` takes the same settings as the command line (`enable`, `disable`, `plugin_options`, `outputs`, `mask_outputs`, `dedup`, `exclude_hosts`, `tls_keylog`, `jobs`). See the [Session API](../api/session.md).
+`SessionConfig` takes the same settings as the command line (`plugins`, `sets`, `enable`, `disable`, `plugin_options`, `outputs`, `dedup`, `exclude_hosts`, `tls_keylog`, `jobs`). See the [Session API](../api/session.md).
 
 ## Build a test capture
 

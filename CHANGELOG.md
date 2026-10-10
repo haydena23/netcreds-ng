@@ -2,26 +2,74 @@
 
 ## 2.0.0.dev0 (unreleased)
 
-Complete rewrite as a next-generation, defensive credential-exposure auditing tool. The original net-creds behaviour is the parity floor, verified by tests against output recorded from the original Python 2 tool.
+Python 3 port of net-creds, rebuilt as a plugin-based blue-team sniffer. The original net-creds behaviour is the parity floor, verified by tests against output recorded from the original Python 2 tool.
 
-### Dashboard v2 (M30)
+### Better detection in the existing plugins (M32, 2026-10-09)
 
-- **Finding inspector.** ++enter++ on a finding opens it full-screen:
-    - *Why this matters*: the risk level, the kind, and each tag explained in plain language, with who set it (plugin, analytics, detection or engine). Weak passwords name the rule that matched; alerts state their rule, thresholds and attempts.
-    - *Context*: the service's inventory, the client and server exposure scores, and the account's other services.
-    - *Related findings*: an alert's attempts, the alert a login fed, the same connection, the same secret (by fingerprint) and the same account elsewhere. ++enter++ opens one and ++escape++ goes back.
-- The explanations live in a new module, `netcreds_ng.explain`, which covers every tag the built-in code sets; a test fails when a tag has no entry.
-- **Analytics tabs**: Findings, Overview (risk totals, a timeline per risk, top exposure reasons, protocol and kind breakdowns, capture health), Alerts, Hosts, Services, Accounts, Bookmarks and Health. Number keys switch tabs. ++enter++ on a host, service or account shows its findings, and ++escape++ returns to the tab.
-- **Live view**: `t` follows new findings (on by default for live capture and `--attach`). Space freezes the table while analysis continues, and the status bar shows `FROZEN +N new`.
-- **Bookmarks and notes** (`*`, `n`), with a Bookmarks tab. JSONL export (`e`) adds `bookmarked` and `note` fields.
-- The detail pane starts with a one-line *why*. `?` lists every key, and the footer shows only the most used ones.
-- **`--attach DB`** opens the dashboard on a `--sqlite` database and follows it while another netcreds-ng run writes to it. You can run a capture headless (`-i eth0 -q --sqlite run.db`) and attach to it from any terminal, any number of times. Host, service and account analytics are rebuilt from the stored findings.
-- **SQLite output**:
+The existing plugins find more of what is on the wire, with fewer false positives and duplicates. No new protocols.
+
+**Fixed**
+
+- **Kerberos:** a PKINIT (certificate) or FAST-armored AS-REQ answered by an AS-REP was reported as "AS-REP issued without pre-authentication" (high). It is now a low-risk "Kerberos pre-authentication (PKINIT)" / "(FAST armored)" event; anonymous PKINIT is tagged `anonymous`. Found in real traffic (Zeek `krb/kinit.pcap`).
+- **Oracle (E-9):** an AUTH request split across several TNS DATA packets lost its user name. The client's packets are now scanned together until the server answers.
+- **One secret, one finding (E-10):** an API key in an HTTP request was reported twice, by `http` and by `secrets`. Within a connection, a secret already reported by another plugin is now counted as a duplicate instead, unless the later report adds a user name. `--dedup off` keeps both.
+- **Capture gaps (E-5):** after a gap,
+    - `mysql` and `postgres` resume at the next segment made of whole messages: `mysql` after a successful login (so a later `COM_CHANGE_USER` is found), `postgres` after the StartupMessage (so the login verdict is found);
+    - `sip` over TCP resumes at the next SIP start line;
+    - `mqtt` no longer stops when only client data after the CONNECT was lost.
+
+  A PostgreSQL AuthenticationOk after a server-side gap is a plain success, not "trust".
+- **TLS (E-12):**
+    - A gap in the unencrypted handshake no longer stops decryption once the client random (now read as soon as it arrives) or the ServerHello was seen; decryption resumes at the next record. A lost ChangeCipherSpec still stops that direction.
+    - A session decrypted in one direction only is now listed under warnings.
+    - TLS 1.2 renegotiation now switches to the new handshake's keys at each side's ChangeCipherSpec.
+- **False positives:**
+    - `keyvalue` skips template and masked values (`****`, `%s`, `${VAR}`, `$VAR` in capitals, `{{ var }}`, `<password>`, `null`...).
+    - `telnet` no longer reports binary data after a "Password:" prompt on a non-Telnet port as a typed password.
+- **Plugin selection (M31 follow-up):**
+    - An empty `-P` (`-P ,`, `-P ""`) is a usage error instead of selecting everything.
+    - A plugin declaring `sets = "name"` (a string) gets one set rather than one per letter, with a warning.
+    - Config `select` may be a string.
+    - Nested user sets resolve in linear time.
+
+### Refocus: a sniffer built from plugins you choose (2026-10-09)
+
+netcreds-ng is back to what net-creds was: a sniffer that prints the credentials it sees, now made of plugins you pick. Features that had grown it into a reporting and dashboard product were removed. The full-featured state is kept in git history (local tag `archive/full-featured`, commit `75b8b5f`).
+
+**Added**
+
+- **Plugin sets and "only these" selection.**
+    - `-P`/`--plugins LIST` runs only the named protocol plugins and sets.
+    - `--enable` and `--disable` now accept set names too.
+    - Built-in sets: `legacy` (the original's coverage), `web`, `email`, `file-transfer`, `remote-access`, `databases`, `directory`, `aaa`, `network`, `chat`, `iot`, `voip`, `generic`, plus `default` and `all`.
+    - The config file takes `[plugins] select = [...]` and user-defined sets in `[sets]`; sets can nest and extend built-in ones.
+    - Protocol plugins declare their sets with a `sets` class attribute, which third-party plugins can use too. `--list-plugins` shows each plugin's sets and the resolved sets.
+- SQLite output:
     - WAL journaling;
     - a commit about once a second while findings arrive (option `commit_interval`);
     - new `runs` columns `source`, `updated`, `finished` and `stats` (every run counter as JSON), added in place to existing databases.
-- **Fix:** `--tui` together with `--sqlite` stored no findings. The sink was opened on the dashboard's UI thread and written from the analysis thread, so SQLite rejected every write, and each one was counted as a sink error.
-- New public helpers: `RunStats.snapshot()` and `RunStats.from_snapshot()`; `observe()` on the analytics and detection enrichers, which replays stored findings without re-deriving tags or alerts; and `netcreds_ng.session.combine_summary()`.
+- `RunStats.snapshot()` / `RunStats.from_snapshot()`, and `netcreds_ng.session.combine_summary()`.
+
+**Removed**
+
+- **Masking and redaction**: `--mask`, `[output] mask`, the `mask` and `include_secrets` output options, and `netcreds_ng.output.masking`. Every output now records findings as seen. **This includes `--webhook` and `--syslog`, which used to mask by default and now send secrets to the configured destination.**
+- **The HTML report**: `--html`, the `html` output and its options.
+- **The interactive dashboard.** `--tui` is now a minimal live table (status bar, findings table that follows new rows, detail pane, `/` filter, `p` pause, `q` quit). Removed with it:
+    - the finding inspector and its explanations (`netcreds_ng.explain`), the analytics tabs, bookmarks and notes, follow/freeze;
+    - the side panel, saved filters, session and host drill-down, risk and browsing toggles, and JSONL/HTML export keys;
+    - the sparkline and `--attach`.
+- The enrichers' `observe()` replay methods (they existed only for `--attach`).
+
+**Changed**
+
+- Live capture prints findings one line each by default, like the original. The table appears only with `--tui`; `--no-tui` is still accepted and does nothing.
+- `-P`, `--enable` and `--disable` are a usage error with `--legacy`, which always runs the original's parsers.
+- `mask` and `html` under `[output]` in a config file are ignored, with a note on stderr naming them.
+- `test_installed_entry_point_subprocess` decodes the child's output as UTF-8, so it no longer fails in a cp1252 console (E-29).
+
+**Fixed**
+
+- `--tui` together with `--sqlite` stored no findings. The sink was opened on the UI thread and written from the analysis thread, so SQLite rejected every write, and each one was counted as a sink error (E-25).
 
 ### Live capture start-up
 

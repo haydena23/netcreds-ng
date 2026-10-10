@@ -100,6 +100,7 @@ class _State:
 
 class HTTP2Plugin(ProtocolPlugin):
     name = "http2"
+    sets = ("web",)
     description = "HTTP/2 URLs, credentials, auth headers, API keys, cookies, JWTs (h2c / decrypted h2)"
     default_ports = frozenset({80, 443, 8080, 8443})
     priority = 51

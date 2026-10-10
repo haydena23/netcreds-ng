@@ -28,7 +28,7 @@ def _cef_ext(value: object) -> str:
 
 
 def cef_line(f: Finding) -> str:
-    """One ArcSight CEF:0 event. Pass an already masked finding to keep secrets out."""
+    """One ArcSight CEF:0 event."""
     name = f"{f.protocol} {f.kind.value.replace('_', ' ')}"
     ext: list[tuple[str, object]] = [
         ("rt", int(f.timestamp * 1000)),

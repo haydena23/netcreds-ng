@@ -30,7 +30,7 @@ Because the key is new every run:
 
 - fingerprints correlate findings within one run only;
 - they cannot be compared across runs or used to test password guesses;
-- JSONL, SQLite and HTML outputs of the same capture differ between runs in this field only.
+- JSONL and SQLite outputs of the same capture differ between runs in this field only.
 
 ## Default and write SNMP communities
 
@@ -96,11 +96,11 @@ Third-party plugins take part automatically if they emit `auth_result` findings 
 | `clients` | number of distinct client IPs |
 | `successes` / `failures` | login results |
 
-The console summary shows the services with `cleartext` set under **Services exposing cleartext secrets**. The HTML report shows the whole inventory.
+The console summary shows the services with `cleartext` set under **Services exposing cleartext secrets**. `--summary-json` has the whole inventory.
 
 ## Shared accounts
 
-An account seen on more than one service (compared case-insensitively, `domain\user` when a domain is known) is listed under *accounts seen on several services* in the HTML report. These are the accounts whose exposure on one service puts others at risk.
+An account seen on more than one service (compared case-insensitively, `domain\user` when a domain is known) is listed under `shared_accounts` in `--summary-json`. These are the accounts whose exposure on one service puts others at risk.
 
 ## Host exposure scores
 
@@ -114,7 +114,7 @@ Each host gets a 0–100 score from the findings it took part in, as client or s
 | each alert, for the target server | 15 |
 | each brute-force, spraying or login-after-failures alert, for the attacking client | 15 |
 
-The score is capped at 100. Login results and browsing findings do not score. The console's **Most exposed hosts** table is ordered by the worst risk seen and then by finding count; the dashboard's side panel and the HTML report show the scores.
+The score is capped at 100. Login results and browsing findings do not score. The console's **Most exposed hosts** table is ordered by the worst risk seen and then by finding count; `--summary-json` has the scores (`host_scores`).
 
 ## Using the analysis in Python
 

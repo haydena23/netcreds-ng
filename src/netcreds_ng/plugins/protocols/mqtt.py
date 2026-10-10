@@ -80,12 +80,19 @@ class _Reader:
 
 class MQTTPlugin(ProtocolPlugin):
     name = "mqtt"
+    sets = ("iot",)
     description = "MQTT CONNECT username/password and CONNACK result (any port)"
     default_ports = frozenset({1883})
     priority = 91
 
     def new_state(self, flow: FlowInfo) -> _State:
         return _State()
+
+    def on_gap(self, ctx: Context, direction: Direction, size: int) -> None:
+        st: _State = ctx.state
+        if direction is Direction.CLIENT_TO_SERVER and st.client_done:
+            return  # E-5: client data after the CONNECT is not read, so the CONNACK still counts
+        ctx.detach()  # the CONNECT or the CONNACK (the first packet each way) was lost
 
     def on_data(self, ctx: Context, direction: Direction, data: bytes) -> None:
         st: _State = ctx.state

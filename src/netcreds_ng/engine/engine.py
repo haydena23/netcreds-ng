@@ -130,6 +130,10 @@ class Engine:
         self.server_ports: set[int] = set()
         for p in self.plugins:
             self.server_ports |= set(p.default_ports)
+        #: Secrets already reported per flow id, with the reporting plugin and user name (E-10).
+        #: Disabled with ``--dedup off``, which asks for every report.
+        self._flow_secrets: dict[int, dict[str, list[tuple[str, str | None]]]] = {}
+        self._merge_secrets = pipeline.dedup.mode != "off"
 
     # public ----------------------------------------------------------------
 
@@ -245,8 +249,7 @@ class Engine:
     def _slot(self, plugin: ProtocolPlugin, info: FlowInfo, swapped: bool) -> _Slot | None:
         slot = _Slot(plugin, Context(info, self._emit, self.options), swapped)
         slot.ctx.tls_decryption = self.tls is not None
-        if self.dual_orientation:
-            slot.ctx._emit = lambda finding, s=slot: self._emit_from(s, finding)
+        slot.ctx._emit = lambda finding, s=slot: self._emit_from(s, finding)
         try:
             slot.ctx.state = plugin.new_state(info)
         except Exception as exc:  # noqa: BLE001
@@ -263,7 +266,26 @@ class Engine:
             twin.sibling = None
             slot.sibling = None
             self.stats.orientation_resolved += 1
+        if finding.secret and self._merge_secrets and self._cross_plugin_duplicate(slot, finding.secret, finding.username):
+            self.stats.duplicates += 1
+            return
         self._emit(finding)
+
+    def _cross_plugin_duplicate(self, slot: _Slot, secret: str, username: str | None) -> bool:
+        """True if another plugin already reported this secret in this flow (E-10).
+
+        One value on the wire is one exposure: an API key in an HTTP request is found by both
+        ``http`` and ``secrets``. A later report from a different plugin is dropped only if it adds
+        nothing: the same user name, or none. A report that adds a user name (an HTTP form login
+        after ``secrets`` saw the bare token first) is kept, so the result does not depend on how
+        the request was split into segments.
+        """
+        reports = self._flow_secrets.setdefault(slot.ctx.flow.flow_id, {}).setdefault(secret, [])
+        name = slot.plugin.name
+        if any(plugin != name and (username is None or user == username) for plugin, user in reports):
+            return True
+        reports.append((name, username))
+        return False
 
     def _guess_sender_is_client(self, pkt: Packet) -> tuple[bool, bool]:
         """(sender is the client, whether that is certain rather than a guess)."""
@@ -435,10 +457,10 @@ class Engine:
                 self.stats.tls_sessions += 1
                 chunk = Chunk(data, 0, chunk.frame, chunk.timestamp)
             side = 0 if direction is flow.tls_client else 1  # TLS side 0 is whoever sent the ClientHello
-            if chunk.gap_before:
-                flow.tls.gap(side)
+            if chunk.gap_before and flow.tls.gap(side):
                 out.append(Chunk(b"", chunk.gap_before, chunk.frame, chunk.timestamp, decrypted=True))
                 continue
+            # Without a loss of protected records (E-12) the decrypted stream has no hole: keep going.
             out.extend(Chunk(plain, 0, chunk.frame, chunk.timestamp, decrypted=True)
                        for plain in flow.tls.feed(side, chunk.data) if plain)  # fmt: skip
         return out
@@ -516,6 +538,7 @@ class Engine:
                     self._slot_error(slot, exc)
         finally:
             self._decrypted_context = False
+        self._flow_secrets.pop(flow.info.flow_id, None)
         for slot in flow.contexts:
             if slot.suppressed is not None and not (slot.twin is not None and slot.twin.won):
                 # Neither orientation won: the swallowed error may have hidden real findings.
@@ -541,6 +564,9 @@ class Engine:
         st = self.stats
         if session.status == "decrypting" or session.decrypted:
             st.tls_decrypted += 1
+            if any(side.broken for side in session.sides) and len(self.pipeline.errors) < 100:
+                # One direction stopped (e.g. a capture gap): say so rather than look fully decrypted.
+                self.pipeline.errors.append(f"TLS decrypted in one direction only: {session.reason}")
         elif session.status == "no-key":
             st.tls_no_key += 1
         elif session.status == "unsupported":

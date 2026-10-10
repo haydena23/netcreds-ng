@@ -307,6 +307,11 @@ class _Side:
     broken: bool = False
     opened: bool = False  # a protected record has been decrypted in this direction
     hs13: bytearray = field(default_factory=bytearray)  # decrypted TLS 1.3 handshake bytes (one key epoch)
+    resync: bool = False  # after a gap in the plaintext handshake: look for the next record header (E-12)
+    hs_lost: bool = False  # plaintext handshake bytes were lost: stop parsing them on this side
+    hs12: bytearray = field(default_factory=bytearray)  # decrypted TLS 1.2 handshake bytes (renegotiation)
+    pending: _Keys | None = None  # TLS 1.2 keys from a renegotiation, used from this side's next CCS
+    renegotiating: bool = False  # a renegotiation handshake started: a CCS switches keys
 
 
 class TLSSession:
@@ -327,6 +332,7 @@ class TLSSession:
         self.reason = ""
         self.records = 0
         self.decrypted = 0
+        self._reneg_client_random: bytes | None = None  # TLS 1.2 renegotiation in progress
 
     # public ------------------------------------------------------------------------------
 
@@ -336,6 +342,20 @@ class TLSSession:
             return []
         side.buf += data
         out: list[bytes] = []
+        if side.resync:
+            start = _record_start(side.buf)
+            if start is None:
+                del side.buf[: max(0, len(side.buf) - 4)]  # a header may begin in the last bytes
+                return out
+            if start < 0:
+                return out  # a candidate record is not complete yet
+            del side.buf[:start]
+            side.resync = False
+        if direction == 0 and self.client_random is None and not side.hs and len(side.buf) >= 43 \
+                and side.buf[0] == HANDSHAKE and side.buf[5] == 1:  # fmt: skip
+            # Record header (5), handshake header (4), version (2), then the random: keep it as soon
+            # as it arrives, so a gap in the rest of the ClientHello does not lose the session (E-12).
+            self.client_random = bytes(side.buf[11:43])
         while len(side.buf) >= 5:
             rtype, version, length = struct.unpack("!BHH", side.buf[:5])
             if rtype not in (CCS, ALERT, HANDSHAKE, APPDATA) or version >> 8 != 3 or length > MAX_RECORD:
@@ -353,9 +373,26 @@ class TLSSession:
                 return out
         return out
 
-    def gap(self, direction: int) -> None:
-        """Bytes were lost: the record sequence number is unknown, so this direction cannot continue."""
-        self._fail(self.sides[direction], "capture gap")
+    def gap(self, direction: int) -> bool:
+        """Bytes were lost in ``direction``; returns whether decrypted data may be missing.
+
+        Once records are protected the sequence number is unknown, so the direction cannot
+        continue. Before that (E-12), lost plaintext handshake bytes do not matter as long as
+        what decryption needs was seen: the client random (client side) or the ServerHello
+        (server side). The direction then resumes at the next record boundary, and no
+        application data was lost.
+        """
+        side = self.sides[direction]
+        if side.broken:
+            return True
+        needed = self.client_random if direction == 0 else self.server_random
+        if not side.encrypted and needed is not None:
+            side.buf.clear()
+            side.hs.clear()
+            side.resync = side.hs_lost = True
+            return False
+        self._fail(side, "capture gap")
+        return True
 
     # internals ---------------------------------------------------------------------------
 
@@ -370,12 +407,22 @@ class TLSSession:
                 out: list[bytes]) -> None:  # fmt: skip
         if rtype == CCS:
             if self.version == TLS12:
+                if side.encrypted and side.renegotiating:
+                    # E-12: a renegotiation finished; this side now uses the new keys (or, without a
+                    # key for the new handshake, stops decrypting instead of failing).
+                    side.keys = [side.pending] if side.pending is not None else []
+                    side.pending, side.renegotiating = None, False
+                    side.hs12.clear()
                 # Everything after a TLS 1.2 ChangeCipherSpec is protected. Without keys it is skipped,
                 # rather than misread as plaintext handshake (review L4).
                 side.encrypted = True
             return
         if not side.encrypted:
-            if rtype == HANDSHAKE:
+            if side.hs_lost and side.keys and (rtype == APPDATA or (rtype == HANDSHAKE and not _plain_handshake(body))):
+                # After a handshake gap, a protected record before any ChangeCipherSpec means the
+                # gap swallowed the CCS: the direction cannot be followed (review M32 MED-2).
+                raise DecryptError("capture gap before ChangeCipherSpec")
+            if rtype == HANDSHAKE and not side.hs_lost:
                 side.hs += body
                 self._handshake(d, side)
             return  # plaintext alerts are not interesting
@@ -395,6 +442,8 @@ class TLSSession:
             if rtype == APPDATA:
                 self.decrypted += 1
                 out.append(plain)
+            elif rtype == HANDSHAKE:
+                self._handshake12(d, side, plain)
 
     def _try13(self, side: _Side, header: bytes, body: bytes) -> tuple[int, bytes]:
         """Try the current key, then the later ones (handshake -> application traffic secret).
@@ -432,6 +481,44 @@ class TLSSession:
                 nxt = hkdf_expand_label(self.suite.prf_hash, side.keys[0].secret, b"traffic upd", b"",
                                         hashlib.new(self.suite.prf_hash).digest_size)  # fmt: skip
                 side.keys[0] = keys13(self.suite, nxt)
+
+    def _handshake12(self, d: int, side: _Side, plain: bytes) -> None:
+        """Encrypted TLS 1.2 handshake messages: Finished, and the hellos of a renegotiation (E-12)."""
+        side.hs12 += plain
+        if len(side.hs12) > 1 << 20:
+            side.hs12.clear()
+            return
+        while len(side.hs12) >= 4:
+            mtype, mlen = side.hs12[0], int.from_bytes(side.hs12[1:4], "big")
+            if len(side.hs12) < 4 + mlen:
+                return
+            msg = bytes(side.hs12[4 : 4 + mlen])
+            del side.hs12[: 4 + mlen]
+            if mtype == 1 and d == 0 and len(msg) >= 34:
+                self._reneg_client_random = msg[2:34]
+                for s in self.sides:
+                    s.renegotiating, s.pending = True, None
+            elif mtype == 2 and d == 1 and self._reneg_client_random is not None:
+                self._renegotiated_server_hello(msg)
+
+    def _renegotiated_server_hello(self, msg: bytes) -> None:
+        if len(msg) < 38 or struct.unpack("!H", msg[0:2])[0] != TLS12:
+            return
+        server_random, pos = msg[2:34], 35 + msg[34]
+        if pos + 3 > len(msg):
+            return
+        suite = SUITES12.get(struct.unpack("!H", msg[pos : pos + 2])[0])
+        client_random, self._reneg_client_random = self._reneg_client_random, None
+        secrets = self.keylog.lookup(client_random or b"")
+        master = secrets.get("CLIENT_RANDOM") if secrets else None
+        if suite is None or master is None or client_random is None:
+            return  # no key for the new handshake: each side stops decrypting at its CCS
+        etm = 0x0016 in _extensions(msg, pos + 3, client=False)
+        if etm != self.etm and suite.mode == "cbc":
+            return  # a changed MAC order is not followed; stop at the CCS rather than misread
+        ck, sk = keys12(suite, master, client_random, server_random)
+        self.sides[0].pending, self.sides[1].pending = ck, sk
+        self.suite, self.suite_id = suite, struct.unpack("!H", msg[pos : pos + 2])[0]
 
     def _handshake(self, d: int, side: _Side) -> None:
         while len(side.hs) >= 4:
@@ -513,6 +600,44 @@ class TLSSession:
             ck, sk = keys12(suite, master, self.client_random or b"", self.server_random or b"")
             client.keys, server.keys = [ck], [sk]
         self.status = "decrypting"
+
+
+#: Handshake message types sent in plaintext before ChangeCipherSpec (TLS 1.2).
+_PLAIN_HS_TYPES = frozenset({1, 2, 11, 12, 13, 14, 15, 16, 22})
+
+
+def _plain_handshake(body: bytes) -> bool:
+    """Whether a record body starts with a plaintext handshake message (type and a fitting length)."""
+    return len(body) >= 4 and body[0] in _PLAIN_HS_TYPES and int.from_bytes(body[1:4], "big") <= 1 << 16
+
+
+def _plausible_header(buf: bytes | bytearray, pos: int) -> int | None:
+    """Length of the record whose header starts at ``pos``, if it looks like one."""
+    rtype, major, minor = buf[pos], buf[pos + 1], buf[pos + 2]
+    length = int.from_bytes(buf[pos + 3 : pos + 5], "big")
+    if rtype in (CCS, ALERT, HANDSHAKE, APPDATA) and major == 3 and minor <= 4 and 0 < length <= MAX_RECORD:
+        return length
+    return None
+
+
+def _record_start(buf: bytes | bytearray) -> int | None:
+    """After a gap: the offset of the first record header from which complete records chain.
+
+    Returns None if there is none, or ``-1`` while the first candidate's record is incomplete.
+    A false candidate inside lost data can only misframe records, which then fail the record
+    checks or authentication: decryption never produces wrong plaintext from it.
+    """
+    for i in range(len(buf) - 4):
+        pos, records = i, 0
+        while pos + 5 <= len(buf) and (length := _plausible_header(buf, pos)) is not None:
+            pos += 5 + length
+            records += 1
+        if pos + 5 <= len(buf):
+            continue  # the chain reaches an implausible header: not a record boundary
+        if pos > len(buf) and records == 1:
+            return -1  # the candidate record is not complete yet
+        return i
+    return None
 
 
 def _extensions(msg: bytes, pos: int, client: bool) -> dict[int, bytes]:

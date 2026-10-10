@@ -266,3 +266,113 @@ def test_tls13_split_handshake_message_and_key_update():
     nxt = hkdf_expand_label("sha256", secret, b"traffic upd", b"", 32)
     wire += _seal13(keys13(suite, nxt), 23, b"after update")
     assert session.feed(1, wire) == [b"after update"]
+
+
+# --- E-12: gaps in the plaintext handshake, TLS 1.2 renegotiation ----------------------
+
+
+class _CutClientHello(TCPConversation):
+    """Loses bytes ``lost`` of the client's first flight (the ClientHello) in the capture."""
+
+    lost: tuple[int, int] = (60, 100)
+
+    def client(self, data: bytes, segment: int | None = None) -> TCPConversation:
+        lo, hi = self.lost
+        if self.c_seq == self.client_isn + 1 and len(data) > hi:
+            super().client(data[:lo])
+            self.advance(True, hi - lo)
+            return super().client(data[hi:])
+        return super().client(data, segment)
+
+
+@pytest.mark.parametrize("version", ["1.2", "1.3"])
+def test_gap_inside_client_hello_after_the_random_still_decrypts(tmp_path, version):
+    keylog = tmp_path / "keys.log"
+    conv = _CutClientHello("192.0.2.10", 50443, "198.51.100.20", 443).handshake()
+    conv, _ = tls_conversation(tmp_path, [(REQUEST, RESPONSE)], keylog=str(keylog), version=version, conv=conv)
+    found, stats = analyse(conv, KeyLog(str(keylog)))
+    assert creds(found) == [("HTTP", "alice", "Fake-Pass-1", True)]
+    assert stats.tls_decrypted == 1 and stats.tls_failed == 0
+
+
+def test_gap_before_the_client_random_fails_closed(tmp_path):
+    keylog = tmp_path / "keys.log"
+    conv = _CutClientHello("192.0.2.10", 50443, "198.51.100.20", 443).handshake()
+    conv.lost = (12, 50)  # the random (bytes 11..43 of the record stream) is lost
+    conv, _ = tls_conversation(tmp_path, [(REQUEST, RESPONSE)], keylog=str(keylog), conv=conv)
+    found, stats = analyse(conv, KeyLog(str(keylog)))
+    assert creds(found) == [] and stats.tls_decrypted == 0
+
+
+def _seal12(keys, rtype: int, payload: bytes) -> bytes:
+    """Encrypt one TLS 1.2 AES-GCM record (RFC 5288) with ``keys``."""
+    import struct
+
+    explicit = struct.pack("!Q", keys.seq)
+    aad = explicit + struct.pack("!BHH", rtype, 0x0303, len(payload))
+    sealed = keys.aead.encrypt(keys.iv + explicit, payload, aad)
+    keys.seq += 1
+    return struct.pack("!BHH", rtype, 0x0303, 8 + len(sealed)) + explicit + sealed
+
+
+def _hs(mtype: int, body: bytes) -> bytes:
+    return bytes([mtype]) + len(body).to_bytes(3, "big") + body
+
+
+@pytest.mark.parametrize("with_key", [True, False])
+def test_tls12_renegotiation_switches_keys_at_each_ccs(with_key):
+    from netcreds_ng.engine.tls import SUITES12, TLS12, TLSSession, keys12
+
+    suite = SUITES12[0xC02F]
+    cr1, sr1, cr2, sr2 = (bytes([n]) * 32 for n in (1, 2, 3, 4))
+    master1, master2 = b"\x11" * 48, b"\x22" * 48
+    session = TLSSession(KeyLog(text=f"CLIENT_RANDOM {cr2.hex()} {master2.hex()}\n" if with_key else ""))
+    session.version, session.suite, session.status = TLS12, suite, "decrypting"
+    client, server = session.sides
+    client.keys, server.keys = (list(k) for k in zip(keys12(suite, master1, cr1, sr1)))
+    client.encrypted = server.encrypted = True
+    c_old, s_old = keys12(suite, master1, cr1, sr1)
+    c_new, s_new = keys12(suite, master2, cr2, sr2)
+    ccs = b"\x14\x03\x03\x00\x01\x01"
+
+    hello = _hs(1, b"\x03\x03" + cr2 + b"\x00" + b"\x00\x02\xc0\x2f" + b"\x01\x00")
+    assert session.feed(0, _seal12(c_old, 22, hello) + _seal12(c_old, 23, b"before")) == [b"before"]
+    assert session.feed(1, _seal12(s_old, 22, _hs(2, b"\x03\x03" + sr2 + b"\x00\xc0\x2f\x00"))) == []
+    after = session.feed(0, ccs + _seal12(c_new, 22, _hs(20, b"\x00" * 12)) + _seal12(c_new, 23, b"after"))
+    reply = session.feed(1, ccs + _seal12(s_new, 22, _hs(20, b"\x00" * 12)) + _seal12(s_new, 23, b"reply"))
+    if with_key:
+        assert (after, reply) == ([b"after"], [b"reply"])
+    else:  # no key for the new handshake: both sides stop quietly instead of failing
+        assert (after, reply) == ([], [])
+    assert session.status == "decrypting" and not client.broken and not server.broken
+
+
+class _DropClientCCS(TCPConversation):
+    """Loses the client's ChangeCipherSpec record (TLS 1.2) in the capture."""
+
+    def client(self, data: bytes, segment: int | None = None) -> TCPConversation:
+        ccs = b"\x14\x03\x03\x00\x01\x01"
+        idx = data.find(ccs)
+        if idx > 0 and not getattr(self, "dropped", False):
+            self.dropped = True
+            super().client(data[:idx])
+            self.advance(True, len(ccs))
+            return super().client(data[idx + len(ccs):])
+        return super().client(data, segment)
+
+
+def test_lost_change_cipher_spec_fails_that_direction(tmp_path):
+    # Review M32 MED-2: after the handshake-gap resync, a protected record before any CCS means the
+    # CCS was lost. The direction must fail (counted), not go silently blind while "decrypting".
+    keylog = tmp_path / "keys.log"
+    conv = _DropClientCCS("192.0.2.10", 50443, "198.51.100.20", 443).handshake()
+    conv, _ = tls_conversation(tmp_path, [(REQUEST, RESPONSE)], keylog=str(keylog), version="1.2", conv=conv)
+    stats = RunStats()
+    found = []
+    pipe = Pipeline(stats, listeners=[found.append])
+    engine = Engine(load_registry(use_entry_points=False).select_protocols(), pipe, stats,
+                    tls=TLSDecryptor(KeyLog(str(keylog))))
+    engine.process(to_raw_frames(conv.close().frames))
+    engine.finish()
+    assert creds(found) == [] and not stats.plugin_errors
+    assert any("one direction only: capture gap before ChangeCipherSpec" in e for e in pipe.errors), pipe.errors

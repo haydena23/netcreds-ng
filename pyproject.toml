@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "netcreds-ng"
 dynamic = ["version"]
-description = "Next-generation network credential exposure auditing: find cleartext credentials and weak authentication in pcaps or live traffic."
+description = "Plugin-based blue-team network sniffer: prints cleartext credentials and weak authentication seen in live traffic or pcaps (Python 3 port of net-creds)."
 readme = "README.md"
 license = "GPL-3.0-or-later"
 license-files = ["LICENSE"]

@@ -82,19 +82,6 @@ class AnalyticsEnricher(EnricherPlugin):
         self._profile(finding)
         return iter(())
 
-    def observe(self, finding: Finding) -> None:
-        """Account for an already-enriched finding (tags set) without re-deriving its tags.
-
-        Rebuilds host profiles and counters from stored findings (the dashboard's ``--attach``
-        mode), where secrets may be masked and fingerprints come from the original run.
-        """
-        if "weak-password" in finding.tags:
-            self.weak_count += 1
-        fp = finding.extra.get("secret_fingerprint")
-        if "password-reuse" in finding.tags and fp:
-            self.reused[str(fp)] += 1
-        self._profile(finding)
-
     def _profile(self, f: Finding) -> None:
         if f.kind in (Kind.URL, Kind.SEARCH, Kind.POST, Kind.INFO, Kind.ALERT):
             return

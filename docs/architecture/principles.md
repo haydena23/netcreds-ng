@@ -13,7 +13,7 @@ netcreds-ng is an exposure-auditing tool. It reports cleartext credentials in fu
 - secrets protected by a shared key (RADIUS, TACACS+) are never decrypted and the key is never guessed;
 - password-reuse fingerprints use a fresh random key per run, so they cannot be used to test guesses.
 
-Features that send data over the network (webhook, syslog) are opt-in and mask secrets by default.
+Features that send data over the network (webhook, syslog) are opt-in: nothing is sent unless the user names the output.
 
 ## Bytes on the wire, text at the edge
 

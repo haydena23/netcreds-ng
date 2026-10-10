@@ -35,14 +35,14 @@ def test_cef_line_fields_and_escaping():
     assert r"cs1=cleartext,weak|tag\=x" in ext
 
 
-def test_cef_file_sink_masks_with_option(tmp_path):
+def test_cef_file_sink_writes_findings_as_seen(tmp_path):
     path = tmp_path / "out.cef"
-    sink = CefSink(str(path), {"mask": True})
+    sink = CefSink(str(path))
     sink.open(SinkContext(RunStats()))
     sink.write(cred())
     sink.close(RunStats())
     text = path.read_text(encoding="utf-8")
-    assert text.startswith("CEF:0|") and "Fake-Pass-1" not in text and "F*********1 (11)" in text
+    assert text.startswith("CEF:0|") and "msg=alice:Fake-Pass-1" in text
 
 
 def test_syslog_message_priority_and_timestamp():
@@ -66,7 +66,7 @@ class _FakeSocket:
         pass
 
 
-def test_syslog_udp_masks_and_filters_by_risk(monkeypatch):
+def test_syslog_udp_filters_by_risk(monkeypatch):
     _FakeSocket.sent = []
     monkeypatch.setattr(socket, "socket", _FakeSocket)
     sink = SyslogSink("udp://198.51.100.99:5514", {"hostname": "sensor"})
@@ -77,14 +77,13 @@ def test_syslog_udp_masks_and_filters_by_risk(monkeypatch):
     assert len(_FakeSocket.sent) == 1
     data, addr = _FakeSocket.sent[0]
     assert addr == ("198.51.100.99", 5514)
-    assert data.startswith(b"<130>1 ") and b"CEF:0|" in data
-    assert b"Fake-Pass-1" not in data
+    assert data.startswith(b"<130>1 ") and b"CEF:0|" in data and b"alice:Fake-Pass-1" in data
 
 
 def test_syslog_tcp_octet_counting_json(monkeypatch):
     _FakeSocket.sent = []
     monkeypatch.setattr(socket, "create_connection", lambda addr, timeout=None: _FakeSocket())
-    sink = SyslogSink("tcp://198.51.100.99", {"format": "json", "include_secrets": True})
+    sink = SyslogSink("tcp://198.51.100.99", {"format": "json"})
     sink.open(SinkContext(RunStats()))
     sink.write(cred())
     data, _ = _FakeSocket.sent[0]
@@ -128,7 +127,7 @@ def test_webhook_chat_formats(monkeypatch, style, key):
     (payload,) = posted
     assert key in payload
     dumped = json.dumps(payload)
-    assert "Fake-Pass-1" not in dumped
+    assert "Fake-Pass-1" in dumped  # findings are forwarded as seen
     if style != "generic":
         assert "netcreds-ng: 1 new finding" in dumped and "alice" in dumped
 

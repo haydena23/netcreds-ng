@@ -5,7 +5,6 @@ from __future__ import annotations
 import base64
 
 from netcreds_ng.model import Kind
-from netcreds_ng.output.masking import masked
 from netcreds_ng.testing.harness import analyze
 from netcreds_ng.testing.packets import TCPConversation
 from netcreds_ng.testing.protocols import ntlm_type3
@@ -175,23 +174,6 @@ def test_repeated_login_failures_are_not_collapsed():
         c.client(b"USER brute\r\nPASS Same-Fake\r\n").server(b"530 Login incorrect.\r\n")
     c.close()
     assert len(results(analyze(c.frames, enrichers=[]))) == 3
-
-
-# --- --mask must cover secrets embedded in free text -------------------------------------
-
-
-def test_mask_redacts_post_bodies_urls_and_extras():
-    c = TCPConversation(C, 50013, S, 80).handshake()
-    body = b'{"user": {"email": "m@example.com", "password": "Json-Mask-Fake"}}'
-    c.client(b"POST /api?api_key=Query-Mask-Fake HTTP/1.1\r\nHost: x\r\nContent-Type: application/json\r\n"
-             b"Content-Length: " + str(len(body)).encode() + b"\r\n\r\n" + body)  # fmt: skip
-    form = b"username=u&password=Form-Mask-Fake"
-    c.client(b"POST /login HTTP/1.1\r\nHost: x\r\nContent-Length: " + str(len(form)).encode() + b"\r\n\r\n" + form)
-    c.close()
-    rendered = repr([masked(f).to_dict() for f in analyze(c.frames, enrichers=[])])
-    for secret in ("Json-Mask-Fake", "Query-Mask-Fake", "Form-Mask-Fake"):
-        assert secret not in rendered
-    assert "m@example.com" in rendered  # non-secret fields stay readable
 
 
 # --- round-2 protocol review (2026-10-08) ---------------------------------------------

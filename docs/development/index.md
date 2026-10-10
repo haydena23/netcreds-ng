@@ -48,7 +48,7 @@ python -B -m pytest -q -p no:cacheprovider           # leave no cache files behi
 | Test module | Covers |
 | --- | --- |
 | `test_engine_core.py` | capture I/O, decoding, TCP reassembly and IP defragmentation |
-| `test_platform.py` | registry, plugin isolation, pipeline and dedup, enrichers, masking, robustness |
+| `test_platform.py` | registry, plugin sets, plugin isolation, pipeline and dedup, enrichers, robustness |
 | `test_plugins_core.py` | exact expected findings for each synthetic fixture |
 | `test_proto_*.py` | one module per protocol plugin added in netcreds-ng |
 | `test_cross_protocol.py` | with every plugin enabled, each fixture triggers only the plugins that own its protocol |
@@ -62,7 +62,7 @@ python -B -m pytest -q -p no:cacheprovider           # leave no cache files behi
 | `test_integrations.py` | CEF, syslog and chat webhooks; no traffic leaves the process |
 | `test_jobs.py` | parallel analysis gives the same result as a sequential run |
 | `test_cli.py` | end-to-end CLI behaviour, in-process and as a real subprocess |
-| `test_tui.py`, `test_filters.py` | headless dashboard tests (Textual pilot) and the filter language |
+| `test_tui.py`, `test_filters.py` | headless live-table tests (Textual pilot) and the filter language |
 | `test_hpack.py` | HPACK decoder: RFC 7541 Appendix C examples and malformed input |
 | `test_review_regressions.py` | regressions found by the independent protocol review |
 

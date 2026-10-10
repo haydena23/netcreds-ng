@@ -82,6 +82,7 @@ class _State:
 
 class MSSQLPlugin(ProtocolPlugin):
     name = "mssql"
+    sets = ("databases",)
     description = "Microsoft SQL Server (TDS) logins: de-obfuscated LOGIN7 passwords, login metadata (any port)"
     default_ports = frozenset({1433})
     priority = 92

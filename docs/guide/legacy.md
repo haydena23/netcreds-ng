@@ -34,7 +34,7 @@ The test suite runs the original `net-creds.py` under Python 2.7 with scapy 2.4.
 | `-f HOST` | live capture only, and only the first host is used (as the original). With `-p` a note is printed and the filter is ignored |
 | `-v` | do not truncate long values (the original's meaning) |
 
-Every other option (outputs, plugins, dashboard, `--mask`...) is ignored in legacy mode.
+Every other option (outputs, `--tui`...) is ignored in legacy mode; `-P`, `--enable` and `--disable` are a usage error.
 
 ## Documented deviations from Python 2
 
@@ -58,7 +58,7 @@ Without `--legacy`, netcreds-ng is a different tool with the original as its flo
 | Packet handling | one packet at a time, a parser chosen by port (1.x: by port, then first match) | reassembled TCP streams; every plugin sees every flow; detection by content |
 | Output | free-text lines | structured findings with protocol, kind, risk, tags and frame number |
 | Credentials split across packets or on non-standard ports | often missed | found |
-| `-v` | original: do not truncate; 1.x: toggled the analytics panel | do not truncate (the analytics panel is the `a` key in the dashboard) |
+| `-v` | original: do not truncate; 1.x: toggled the analytics panel | do not truncate |
 | `-f` | original: live capture only, one host | comma-separated host list, also applies to capture files |
 | Log file | original: `credentials.txt` always | the outputs you choose (`--log`, `--jsonl`, ...); `credentials.txt` only in legacy mode |
 | Weak authentication | not reported | NTLM version, Kerberos encryption types, SNMPv3 levels, RDP NLA, VNC authentication... |

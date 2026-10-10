@@ -26,6 +26,7 @@ _PASS_PROMPT = re.compile(rb"pass(word|code)?( for [^:\r\n]{1,64})?\s*:\s*$", re
 _OTHER_PROTOCOL = re.compile(rb"^(HTTP/1\.|GET |POST |PUT |HEAD |SIP/2\.0|RTSP/|\+OK|\* OK|220[ -])")
 _FAIL = re.compile(rb"(login incorrect|authentication failed|access denied|% bad passwords?|login failed)", re.IGNORECASE)
 _GIVE_UP_BYTES = 64 * 1024
+_TYPED = re.compile(rb"^[\x09\x20-\x7e\x80-\xff]*$")  # keyboard input: printable ASCII, tab, UTF-8 bytes
 
 
 @dataclass
@@ -43,6 +44,7 @@ class _State:
 
 class TelnetPlugin(ProtocolPlugin):
     name = "telnet"
+    sets = ("remote-access", "legacy")
     description = "Telnet usernames/passwords typed after login prompts (any port)"
     default_ports = frozenset({23, 2323})
     priority = 30
@@ -132,10 +134,17 @@ class TelnetPlugin(ProtocolPlugin):
                 return
 
     def _submit(self, ctx: Context, st: _State) -> None:
-        value = text(bytes(st.typed))
+        raw = bytes(st.typed)
+        value = text(raw)
         st.typed.clear()
         what, st.expecting = st.expecting, None
         st.server_tail = b""
+        if not self._trusted(ctx, st) and not _TYPED.match(raw):
+            # M32: on a non-Telnet port, bytes after a "Password:" that are not keyboard input
+            # (binary protocol data) are not a typed password. Forget the username too, so a later
+            # prompt does not pair it with an unrelated password.
+            st.user = None
+            return
         if what == "username":
             if value:
                 if st.user is not None:

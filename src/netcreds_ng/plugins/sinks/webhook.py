@@ -1,4 +1,4 @@
-"""Webhook notifications (opt-in). Posts findings as JSON; secrets are masked unless explicitly requested."""
+"""Webhook notifications (opt-in). Posts findings as JSON, as seen (secrets included)."""
 
 from __future__ import annotations
 
@@ -9,7 +9,6 @@ from typing import Any
 
 from netcreds_ng.model import Finding, RunStats
 from netcreds_ng.output.formats import chat_line, chat_payload
-from netcreds_ng.output.masking import masked
 from netcreds_ng.plugins.api import SinkContext, SinkPlugin
 from netcreds_ng.plugins.sinks.files import iso
 
@@ -21,13 +20,13 @@ _RISK = {"info": 0, "low": 1, "medium": 2, "high": 3}
 class WebhookSink(SinkPlugin):
     """Sends batches of findings to an HTTP(S) endpoint.
 
-    Options: ``min_risk`` (default ``medium``), ``include_secrets`` (default False), ``batch`` (default 20),
+    Options: ``min_risk`` (default ``medium``), ``batch`` (default 20),
     ``timeout`` seconds (default 5), ``format`` generic|slack|teams|discord (default generic: the JSON
     findings; the others post a chat message to an incoming-webhook URL).
     """
 
     name = "webhook"
-    description = "POST findings as JSON to an HTTP(S) endpoint (opt-in; secrets masked by default)"
+    description = "POST findings as JSON to an HTTP(S) endpoint (opt-in)"
 
     def __init__(self, target: str | None = None, options: dict[str, Any] | None = None) -> None:
         super().__init__(target, options)
@@ -43,7 +42,7 @@ class WebhookSink(SinkPlugin):
     def write(self, finding: Finding) -> None:
         if _RISK.get(finding.risk, 0) < _RISK.get(str(self.options.get("min_risk", "medium")), 2):
             return
-        f = finding if self.options.get("include_secrets") else masked(finding)
+        f = finding
         data = f.to_dict()
         data["timestamp"] = iso(finding.timestamp)
         self.buffer.append(data)

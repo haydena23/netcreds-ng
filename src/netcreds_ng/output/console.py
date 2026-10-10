@@ -10,7 +10,6 @@ from rich.table import Table
 from rich.text import Text
 
 from netcreds_ng.model import Finding, Kind, RunStats
-from netcreds_ng.output.masking import masked
 
 RISK_STYLE = {"high": "bold red", "medium": "yellow", "low": "cyan", "info": "dim"}
 KIND_LABEL = {
@@ -34,21 +33,17 @@ class ConsoleRenderer:
         self,
         console: Console | None = None,
         verbose: bool = False,
-        mask: bool = False,
         browsing: bool = True,
         quiet: bool = False,
     ) -> None:
         self.console = console or Console(highlight=False)
         self.verbose = verbose
-        self.mask = mask
         self.browsing = browsing
         self.quiet = quiet
 
     def finding(self, f: Finding) -> None:
         if self.quiet or (f.kind in BROWSING and not self.browsing):
             return
-        if self.mask:
-            f = masked(f)
         ts = datetime.fromtimestamp(f.timestamp).strftime("%H:%M:%S") if f.timestamp else "--:--:--"
         line = Text()
         line.append(f"{ts} ", style="dim")

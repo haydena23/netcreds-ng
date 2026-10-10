@@ -11,7 +11,7 @@ This reference is generated from the source code and its docstrings. It covers t
 | [Engine](engine.md) | `netcreds_ng.engine.engine`, `.pipeline`, `.tcp`, `.ipfrag`, `.decode` | work on the packet engine |
 | [Capture I/O](capture-io.md) | `netcreds_ng.engine.pcapio`, `.sources` | read and write captures, live capture |
 | [TLS](tls.md) | `netcreds_ng.engine.tls` | TLS key logs and decryption |
-| [Output helpers](output.md) | `netcreds_ng.output.*`, `netcreds_ng.tui.filters` | masking, console rendering, SIEM formats, filters |
+| [Output helpers](output.md) | `netcreds_ng.output.*`, `netcreds_ng.tui.filters` | console rendering, SIEM formats, filters |
 | [Protocol parsers](proto.md) | `netcreds_ng.proto.*`, `plugins.protocols._util` | shared parsers and helpers for plugins |
 | [Configuration](config.md) | `netcreds_ng.config` | read configuration files |
 | [Testing SDK](testing.md) | `netcreds_ng.testing.*` | build traffic and test plugins |

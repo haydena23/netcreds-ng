@@ -24,6 +24,7 @@ class _State:
 
 class SNMPPlugin(ProtocolPlugin):
     name = "snmp"
+    sets = ("network", "legacy")
     description = "SNMP v1/v2c community strings; SNMPv3 users and security level"
     transports = frozenset({Transport.UDP})
     default_ports = frozenset({161, 162})

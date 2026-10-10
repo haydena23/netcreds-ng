@@ -71,7 +71,11 @@ The repository's `examples/netcreds-ng-example-plugin` is a complete, tested pac
 
 ## Opt-in plugins
 
-Set `opt_in = True` for plugins that are expensive, noisy or specialised. They are listed as `opt-in` by `--list-plugins` and run only with `--enable <name>`, `--enable all`, or `enable = [...]` in the configuration.
+Set `opt_in = True` for plugins that are expensive, noisy or specialised. They are listed as `opt-in` by `--list-plugins` and run only when named (`-P <name>`, `--enable <name>`, a set containing them, or `all`).
+
+## Plugin sets
+
+Set `sets = ("databases",)` to join a built-in set, or name a new one; users can then select your plugin with `-P <set>`. Pick set names that do not clash with plugin names (clashes are reported by `--list-plugins` and ignored).
 
 ## Security
 

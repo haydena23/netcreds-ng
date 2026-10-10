@@ -24,6 +24,7 @@ from netcreds_ng.plugins.protocols._util import text
 _MAX_BUFFER = 1024 * 1024
 _MAX_PACKET = 1024 * 1024
 _MAX_DATA_PACKETS = 256  # stop looking for the AUTH exchange after this many DATA packets
+_MAX_TURN = 64 * 1024  # client DATA bytes kept per turn while looking for the AUTH request
 
 CONNECT, ACCEPT, ACK, REFUSE, REDIRECT, DATA = 1, 2, 3, 4, 5, 6
 RESEND, MARKER, ATTENTION, CONTROL = 11, 12, 13, 14
@@ -59,6 +60,11 @@ class _State:
     auth_reported: bool = False
     user: str | None = None
     data_packets: int = 0
+    #: Client DATA payloads since the server last sent DATA. TTI messages have no length of their
+    #: own, so a request split over several DATA packets is scanned as one turn (E-9).
+    turn: bytearray = field(default_factory=bytearray)
+    turn_at: tuple[int, float] = (0, 0.0)  # frame and timestamp of the turn's last client packet
+    turn_full: bool = False  # the turn exceeded _MAX_TURN: only its first, contiguous part is scanned
 
 
 def descriptor_pairs(desc: str, limit: int = 256) -> list[tuple[tuple[str, ...], str]]:
@@ -149,6 +155,7 @@ def _user_before(buf: bytes, k: int, klen: int) -> bytes | None:
 
 class OraclePlugin(ProtocolPlugin):
     name = "oracle"
+    sets = ("databases",)
     description = "Oracle Net (TNS) logins: connect descriptor and O5LOGON metadata (any port)"
     default_ports = frozenset({1521})
     priority = 93
@@ -205,8 +212,30 @@ class OraclePlugin(ProtocolPlugin):
                 self._descriptor(ctx, st, payload)
                 return
             self._count_data(ctx, st)
-            if not st.auth_reported and b"AUTH_" in payload:
-                self._auth_request(ctx, st, payload)
+            if st.auth_reported or st.turn_full:
+                return
+            if len(st.turn) + len(payload) > _MAX_TURN:
+                st.turn_full = True  # stop collecting: a later packet must not be joined across a hole
+                return
+            st.turn += payload
+            st.turn_at = (ctx.frame, ctx.timestamp)
+
+    def _end_turn(self, ctx: Context, st: _State) -> None:
+        """The client's turn is over (the server answers, or the flow ends): scan its request."""
+        if st.turn:
+            if not st.auth_reported and b"AUTH_" in st.turn:
+                now = ctx.frame, ctx.timestamp
+                ctx.frame, ctx.timestamp = st.turn_at  # the finding points at the request, not the reply
+                try:
+                    self._auth_request(ctx, st, bytes(st.turn))
+                finally:
+                    ctx.frame, ctx.timestamp = now
+            st.turn.clear()
+        st.turn_full = False
+
+    def on_close(self, ctx: Context) -> None:
+        if not ctx.detached:
+            self._end_turn(ctx, ctx.state)
 
     def _connect(self, ctx: Context, st: _State, pkt: bytes) -> None:
         if len(pkt) < 34:
@@ -293,6 +322,7 @@ class OraclePlugin(ProtocolPlugin):
             self._refuse(ctx, st, pkt)
         elif ptype == DATA:
             payload = pkt[10:]
+            self._end_turn(ctx, st)
             self._count_data(ctx, st)
             if payload[:4] == _ANO_MAGIC:
                 self._ano_response(ctx, st, payload)

@@ -80,6 +80,43 @@ def test_failed_login_ora_01017_and_tiny_segments():
     assert_no_challenge_material(findings)
 
 
+@pytest.mark.parametrize("style", ["thin", "oci"])
+def test_auth_request_split_over_data_packets(style):
+    # E-9: a TTI message larger than the SDU is sent as several DATA packets. The plugin used to scan
+    # each packet alone, so the user name (before the first AUTH_ key) was lost when the cut fell
+    # between them. Every cut position must give the same finding as the unsplit request.
+    tti = m.auth_phase_one(style=style)[10:]
+    for cut in range(1, len(tti)):
+        c = conv()
+        c.client(m.tns_connect()).server(m.tns_accept())
+        c.client(m.tns_data(tti[:cut])).client(m.tns_data(tti[cut:])).server(m.auth_phase_one_response())
+        c.client(m.auth_phase_two(style=style)).server(m.auth_ok_response())
+        events = [f for f in run(c) if f.kind is not Kind.INFO]
+        assert [(f.kind, f.username) for f in events] == [(Kind.AUTH_EVENT, "alice"), (Kind.AUTH_RESULT, "alice")], cut
+        assert events[0].extra["phase"] == "auth-phase-one" and events[0].extra["pid"] == "4242", cut
+        assert_no_challenge_material(events)
+
+
+def test_split_auth_request_points_at_the_last_request_packet():
+    tti = m.auth_phase_one()[10:]
+    c = conv()
+    c.client(m.tns_connect()).server(m.tns_accept())
+    c.client(m.tns_data(tti[:20])).client(m.tns_data(tti[20:60])).client(m.tns_data(tti[60:]))
+    last_request_frame = len(c.frames)
+    c.server(m.auth_phase_one_response())
+    (event,) = [f for f in run(c) if f.kind is Kind.AUTH_EVENT]
+    assert event.username == "alice" and event.frame == last_request_frame
+    assert (event.src.port, event.dst.port) == (50000, 1521)
+
+
+def test_auth_request_without_reply_is_reported_at_close():
+    c = conv()
+    c.client(m.tns_connect()).server(m.tns_accept()).client(m.tns_data(m.auth_phase_one()[10:40]))
+    c.client(m.tns_data(m.auth_phase_one()[40:]))
+    (event,) = [f for f in run(c) if f.kind is Kind.AUTH_EVENT]
+    assert event.username == "alice"
+
+
 def test_phase_two_only_reports_user_but_no_values():
     c = conv()
     c.client(m.tns_connect()).server(m.tns_accept()).client(m.auth_phase_two()).server(m.auth_ok_response())

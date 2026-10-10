@@ -237,3 +237,62 @@ def test_token_starting_right_after_gap_is_not_trusted_but_later_ones_are():
     c.client(GITHUB.encode() + b"\n" + SLACK.encode() + b"\n")
     (f,) = run(c)
     assert f.secret == SLACK
+
+
+# --- E-10: one key reported by both http and secrets ---------------------------------
+
+
+def _api_key_request(split_body: bool = False) -> TCPConversation:
+    c = TCPConversation("192.0.2.10", 50310, "198.51.100.20", 80).handshake()
+    body = b"api_key=" + GITHUB.encode() + b"&note=fake"
+    head = (b"POST /api HTTP/1.1\r\nHost: api.example.com\r\nX-Api-Key: " + GITHUB.encode()
+            + b"\r\nContent-Type: application/x-www-form-urlencoded\r\nContent-Length: "
+            + str(len(body)).encode() + b"\r\n\r\n")  # fmt: skip
+    if split_body:  # the token is complete in the first segment, the HTTP body is not
+        c.client(head + body[:-4]).client(body[-4:])
+    else:
+        c.client(head + body)
+    return c.close()
+
+
+@pytest.mark.parametrize(
+    "split_body,first",
+    [
+        (False, "http"),  # http runs before secrets on the same data
+        (True, "secrets"),  # secrets sees the complete token before http has the complete request
+    ],
+)
+def test_key_seen_by_http_and_secrets_is_reported_once(split_body, first):
+    from netcreds_ng.model import RunStats
+
+    stats = RunStats()
+    found = analyze(_api_key_request(split_body).frames, enrichers=[], stats=stats)
+    with_key = [f for f in found if f.secret == GITHUB]
+    assert [(f.plugin, f.kind) for f in with_key] == [(first, Kind.API_KEY)]
+    assert stats.duplicates >= 1
+
+
+def test_secrets_alone_still_reports_the_key():
+    found = analyze(_api_key_request().frames, plugins=[SecretsPlugin()], enrichers=[])
+    assert [(f.plugin, f.secret) for f in found] == [("secrets", GITHUB)]
+
+
+def test_dedup_off_keeps_both_reports():
+    found = analyze(_api_key_request().frames, enrichers=[], dedup="off")
+    assert sorted({f.plugin for f in found if f.secret == GITHUB}) == ["http", "secrets"]
+
+
+@pytest.mark.parametrize("split_body", [False, True])
+def test_form_login_with_a_token_password_keeps_the_username_however_segmented(split_body):
+    # Review M32 MED-1: when secrets saw the bare token first, the http credential (with the user
+    # name) was dropped as a duplicate. A later report that adds a user name is kept.
+    c = TCPConversation("192.0.2.10", 50311, "198.51.100.20", 80).handshake()
+    body = b"username=alice&password=" + GITHUB.encode() + b"&note=fake"
+    head = (b"POST /login HTTP/1.1\r\nHost: app.example.com\r\nContent-Type: application/x-www-form-urlencoded"
+            b"\r\nContent-Length: " + str(len(body)).encode() + b"\r\n\r\n")  # fmt: skip
+    if split_body:
+        c.client(head + body[:-4]).client(body[-4:])
+    else:
+        c.client(head + body)
+    found = analyze(c.close().frames, enrichers=[])
+    assert ("alice", GITHUB) in [(f.username, f.secret) for f in found if f.kind is Kind.CREDENTIAL]

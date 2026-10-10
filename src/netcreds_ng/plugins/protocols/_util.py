@@ -5,6 +5,7 @@ from __future__ import annotations
 import base64
 import binascii
 import re
+from collections.abc import Callable
 
 
 def text(raw: bytes) -> str:
@@ -134,3 +135,35 @@ _PRINTABLE = re.compile(rb"^[\x09\x0a\x0d\x20-\x7e]*$")
 
 def printable_ascii(data: bytes) -> bool:
     return bool(_PRINTABLE.match(data))
+
+
+def whole_messages(data: bytes, message_end: Callable[[bytes, int], int | None]) -> bool:
+    """Whether ``data`` is one or more complete messages and nothing else (E-5 resync).
+
+    Length-framed protocols have no sync marker, but data after a capture gap always starts a
+    TCP segment, and requests and replies usually fill whole segments. ``message_end(data, pos)``
+    returns the end offset of a plausible message header at ``pos``, or None.
+    """
+    pos = 0
+    while pos < len(data):
+        end = message_end(data, pos)
+        if end is None or end <= pos or end > len(data):
+            return False
+        pos = end
+    return bool(data)
+
+
+_PLACEHOLDER = re.compile(
+    # Masks are only asterisks or 4+ x; shell variables only ${NAME} or an ALL-CAPS $NAME, so
+    # real values such as "$Secret1" or "xx" are kept (review M32 MED-3).
+    rb"^(?:\*+|[xX]{4,}|%s|%\(\w+\)s|\$\{\w+\}|\$[A-Z_][A-Z0-9_]{2,}|\{\{?\s*[\w.]+\s*\}?\}|<[^<>]*>|\[[^\[\]]*\]"
+    rb"|(?i:null|none|nil|undefined)"
+    rb"|\"\"|''|\"\*+\"|'\*+')$"
+    rb"|^(?:\{\{|\{%|\$\{)",  # a template expression, possibly cut at its first space
+)
+
+
+def placeholder(value: bytes) -> bool:
+    """A template, masked or empty marker in place of a value: ``****``, ``%s``, ``${PASS}``, ``<password>``,
+    ``{{ pw }}``, ``null``. Heuristic plugins do not report these as secrets (M32)."""
+    return bool(_PLACEHOLDER.match(value))

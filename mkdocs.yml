@@ -122,7 +122,8 @@ nav:
       - guide/index.md
       - Analysing captures: guide/analysing-captures.md
       - Live capture: guide/live-capture.md
-      - Interactive dashboard: guide/dashboard.md
+      - Choosing plugins: guide/choosing-plugins.md
+      - Live table: guide/live-table.md
       - Configuration: guide/configuration.md
       - TLS decryption: guide/tls-decryption.md
       - Alerts and analytics: guide/detections.md

@@ -1,18 +1,18 @@
 # Command line
 
 ```text
-netcreds-ng [-h] [-p PATH] [-i IFACE] [-f HOSTS] [-F FILE] [--bpf EXPR] [--attach DB] [-v] [-q] [--tui] [--no-tui] [--mask]
+netcreds-ng [-h] [-p PATH] [-i IFACE] [-f HOSTS] [-F FILE] [--bpf EXPR] [-v] [-q] [--tui]
             [--no-browsing] [--min-risk {info,low,medium,high}] [--jsonl PATH] [--csv PATH] [--log PATH] [--sqlite PATH]
-            [--html PATH] [--evidence PATH] [--cef PATH] [--summary-json PATH] [--webhook URL]
+            [--evidence PATH] [--cef PATH] [--summary-json PATH] [--webhook URL]
             [--webhook-format {generic,slack,teams,discord}]
             [--syslog URL] [-o FORMAT:PATH] [--legacy] [-j N] [--tls-keylog FILE] [--dedup {off,run,persistent}]
-            [--dedup-db PATH] [--enable PLUGINS] [--disable PLUGINS] [--option PLUGIN.KEY=VALUE] [--plugin-dir DIR]
+            [--dedup-db PATH] [-P LIST] [--enable LIST] [--disable LIST] [--option PLUGIN.KEY=VALUE] [--plugin-dir DIR]
             [--config FILE] [--strict] [--strict-heuristics] [--list-plugins] [--list-interfaces] [--debug] [--version]
 ```
 
 The program can also be run as `python -m netcreds_ng`.
 
-**Mode selection.** `--list-interfaces` and `--list-plugins` print and exit. Otherwise `--legacy` selects [legacy mode](../guide/legacy.md). Otherwise `--attach` opens the dashboard on a findings database, `-p` analyses capture files, and without either netcreds-ng captures live on `-i` or the auto-detected interface.
+**Mode selection.** `--list-interfaces` and `--list-plugins` print and exit. Otherwise `--legacy` selects [legacy mode](../guide/legacy.md). Otherwise `-p` analyses capture files, and without `-p` netcreds-ng captures live on `-i` or the auto-detected interface.
 
 ## Sources
 
@@ -36,27 +36,19 @@ A file of IP addresses to ignore, one per line. Empty lines and lines starting w
 
 An additional BPF filter for live capture, combined with the `-f` hosts using `and`. Ignored for capture files.
 
-### `--attach DB`
-
-Open the [dashboard](../guide/dashboard.md#background-capture-and-attach) on a findings database written by `--sqlite`, instead of analysing traffic. While another netcreds-ng run is still writing to the database (for example a headless live capture), the dashboard follows it and shows new findings within about a second. Host, service and account analytics are rebuilt from the stored findings. Cannot be combined with `-p`, `-i`, `--legacy`, `--no-tui`, outputs or `--summary-json`. A missing file, or a file that is not a netcreds-ng database, exits with code 1.
-
 ## Output
 
 ### `-v`, `--verbose`
 
-Do not truncate long values on screen. Without it, values are cut at 100 characters on the console and 80 in the dashboard.
+Do not truncate long values on screen. Without it, values are cut at 100 characters on the console and 80 in the live table.
 
 ### `-q`, `--quiet`
 
-No console output, neither findings nor the summary. Outputs are still written. In live mode, `-q` also selects plain mode instead of the dashboard.
+No console output, neither findings nor the summary. Outputs are still written.
 
-### `--tui` / `--no-tui`
+### `--tui`
 
-Force the interactive [dashboard](../guide/dashboard.md) on or off. Default: on for live capture when standard output is a terminal and `-q` is not given; off for capture files.
-
-### `--mask`
-
-Mask secrets on screen and in every output that writes secrets (`jsonl`, `csv`, `log`, `sqlite`, `cef`). The HTML report, webhook and syslog outputs mask by default anyway. Does not apply to `--evidence`. See [masking secrets](../guide/analysing-captures.md#masking-secrets).
+Show findings in a [live table](../guide/live-table.md) you can pause and filter, instead of printing one line per finding. Off by default, for live capture and capture files alike. (`--no-tui` is still accepted and does nothing.)
 
 ### `--no-browsing`
 
@@ -74,7 +66,6 @@ Lowest risk shown on the console. Default `info`. Outputs still receive every fi
 | `--csv PATH` | CSV with a header row (appends) | [CSV](outputs.md#csv) |
 | `--log PATH` | human-readable lines (appends) | [Log](outputs.md#log) |
 | `--sqlite PATH` | a SQLite database (adds a run) | [SQLite](outputs.md#sqlite) |
-| `--html PATH` | a self-contained HTML report (rewritten at the end of the run) | [HTML report](outputs.md#html-report) |
 | `--evidence PATH` | a pcapng file of the packets behind each finding (rewritten at the end) | [Evidence pcapng](outputs.md#evidence-pcapng) |
 | `--cef PATH` | ArcSight CEF lines (appends) | [CEF](outputs.md#cef) |
 
@@ -82,11 +73,11 @@ Lowest risk shown on the console. Default `info`. Outputs still receive every fi
 
 ### `--summary-json PATH`
 
-Writes the run summary as one JSON document at the end of the run: every counter, the [capture health](../guide/analysing-captures.md#capture-health) assessment, and the analytics (hosts, accounts, alerts). It contains no secrets. `-` writes to standard output; add `-q` so the console summary does not mix with the JSON. It is written in plain console mode (`--no-tui`, `-q`, or file analysis without `--tui`), not from the dashboard, and cannot be combined with `--legacy`. Format: [run summary JSON](outputs.md#run-summary-json).
+Writes the run summary as one JSON document at the end of the run: every counter, the [capture health](../guide/analysing-captures.md#capture-health) assessment, and the analytics (hosts, accounts, alerts). It contains no secrets. `-` writes to standard output; add `-q` so the console summary does not mix with the JSON. It is written in console mode, not with `--tui`, and cannot be combined with `--legacy`. Format: [run summary JSON](outputs.md#run-summary-json).
 
 ### `--webhook URL`
 
-POST findings to an `http://` or `https://` URL, in batches. Medium risk and above by default; secrets masked. Opt-in: nothing is sent unless you give this option or configure it. See [Webhooks](outputs.md#webhooks).
+POST findings to an `http://` or `https://` URL, in batches. Medium risk and above by default; findings are sent as seen, secrets included. Opt-in: nothing is sent unless you give this option or configure it. See [Webhooks](outputs.md#webhooks).
 
 ### `--webhook-format {generic,slack,teams,discord}`
 
@@ -94,7 +85,7 @@ Payload style for `--webhook`. `generic` (default) posts the findings as JSON; t
 
 ### `--syslog URL`
 
-Send findings to a syslog collector, `udp://host[:port]` or `tcp://host[:port]` (default port 514). RFC 5424 messages with a CEF body (or JSON with `--option syslog.format=json`); low risk and above; secrets masked. See [Syslog](outputs.md#syslog).
+Send findings to a syslog collector, `udp://host[:port]` or `tcp://host[:port]` (default port 514). RFC 5424 messages with a CEF body (or JSON with `--option syslog.format=json`); low risk and above; secrets included. See [Syslog](outputs.md#syslog).
 
 ### `-o`, `--output FORMAT:PATH`
 
@@ -122,13 +113,19 @@ Duplicate suppression. Default `run` (or the configuration file's `dedup`). See 
 
 State file for `--dedup persistent`. Default `netcreds-ng-state.sqlite3` in the current directory.
 
-### `--enable PLUGINS`
+### `-P`, `--plugins LIST`
 
-Comma-separated plugin names to enable. Repeatable. `all` enables every plugin, including opt-in ones. It does not disable the others.
+Run only these protocol plugins: comma-separated plugin names and [set names](../guide/choosing-plugins.md#built-in-sets) (`-P databases,ftp`, `-P legacy`, `-P all`). Repeatable. Without it, every protocol plugin that is not opt-in runs, or the `[plugins] select` list from the configuration file. Enrichers are not affected. See [choosing plugins](../guide/choosing-plugins.md).
 
-### `--disable PLUGINS`
+### `--enable LIST`
 
-Comma-separated plugin names to disable. Repeatable. Applies to protocol plugins and enrichers.
+Comma-separated plugin or set names to add to the selection. Repeatable. `all` also turns on opt-in plugins of every kind.
+
+### `--disable LIST`
+
+Comma-separated plugin or set names to remove. Repeatable. Applies to protocol plugins and enrichers (`--disable detection` turns off alerts).
+
+An unknown name, a selection that leaves no protocol plugin, or a set problem in the configuration file is a usage error (exit code 2). `-P`, `--enable` and `--disable` cannot be combined with `--legacy`.
 
 ### `--option PLUGIN.KEY=VALUE`
 

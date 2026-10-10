@@ -105,7 +105,9 @@ When some sessions are neither decrypted nor missing keys, the count is added in
 | No key | the key log has no secrets for this session |
 | Other | unsupported version or cipher, or a failure such as a capture gap; the reason is listed under Warnings for unsupported sessions |
 
-A capture gap inside a TLS session stops decryption for that direction, because the record sequence number is no longer known.
+A capture gap inside a TLS session stops decryption for that direction, because the record sequence number is no longer known. A gap in the unencrypted handshake is different: once the ClientHello's random (client side) or the ServerHello (server side) has been seen, decryption resumes at the next record, because no protected record was lost. If the gap swallowed the ChangeCipherSpec itself, that direction stops. A session decrypted in one direction only is listed under Warnings ("TLS decrypted in one direction only: *reason*").
+
+TLS 1.2 renegotiation is followed: the new handshake's keys are looked up in the key log, and each direction switches to them at its next ChangeCipherSpec. If the key log has no entry for the new handshake, that direction stops decrypting.
 
 ## Live capture
 

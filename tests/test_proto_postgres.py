@@ -224,3 +224,43 @@ def test_http_traffic_ignored():
     c.client(b"GET /login?user=a&pass=b HTTP/1.1\r\nHost: example.test\r\n\r\n")
     c.server(b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nok")
     assert run(c) == []
+
+
+# --- E-5: resynchronise after a capture gap ------------------------------------------
+
+
+def test_scram_verdict_after_gaps_in_both_directions():
+    c = conv()
+    c.client(startup()).server(auth(10, b"SCRAM-SHA-256\x00\x00"))
+    c.client(cmsg(b"SCRAM-SHA-256\x00" + struct.pack("!I", len(SCRAM_DATA)) + SCRAM_DATA))
+    c.advance(False, 120).server(b"tail of a lost server-first message")  # mid-message: skipped
+    c.advance(True, 90)  # the client-final message was lost
+    c.server(error("28P01"))
+    event, result = run(c)
+    assert (event.kind, event.value) == (Kind.AUTH_EVENT, "PostgreSQL SCRAM authentication")
+    assert (result.kind, result.username, result.value) == (Kind.AUTH_RESULT, "alice", "login failed")
+
+
+def test_cleartext_password_after_client_gap():
+    c = conv()
+    c.client(startup()).server(auth(3))
+    c.advance(True, 7).client(b"x-tail")  # a lost and a partial client message
+    c.client(cmsg(b"Pg-Fake-Pass\x00")).server(auth(0))
+    cred, result = run(c)
+    assert (cred.kind, cred.username, cred.secret) == (Kind.CREDENTIAL, "alice", "Pg-Fake-Pass")
+    assert result.value == "login succeeded"
+
+
+def test_auth_ok_after_server_gap_is_not_reported_as_trust():
+    # The lost server bytes may have been an authentication request: AuthenticationOk is then a plain success.
+    c = conv()
+    c.client(startup()).advance(False, 13).server(auth(0))
+    (result,) = run(c)
+    assert (result.kind, result.value) == (Kind.AUTH_RESULT, "login succeeded")
+    assert "no-authentication" not in result.tags
+
+
+def test_gap_before_startup_detaches():
+    c = conv()
+    c.advance(True, 20).client(startup()).server(auth(3)).client(cmsg(b"Pg-Fake-Pass\x00"))
+    assert run(c) == []

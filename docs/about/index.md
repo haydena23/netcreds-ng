@@ -8,11 +8,11 @@ netcreds-ng is the Python 3 successor of [net-creds](https://github.com/DanMcIne
 
 ## Scope
 
-netcreds-ng is a defensive, blue-team auditing tool. It reports cleartext credentials and authentication weaknesses seen on the wire. It does not crack passwords, export hashes for cracking, extract Kerberos tickets for roasting, or test whether captured material is crackable. Network outputs are opt-in and mask secrets by default. See [Design principles](../architecture/principles.md#defensive-scope).
+netcreds-ng is a defensive, blue-team auditing tool. It reports cleartext credentials and authentication weaknesses seen on the wire. It does not crack passwords, export hashes for cracking, extract Kerberos tickets for roasting, or test whether captured material is crackable. Network outputs are opt-in. See [Design principles](../architecture/principles.md#defensive-scope).
 
 ## Responsible use
 
-Only analyse traffic you are authorised to inspect. Captures, evidence files, key logs and outputs contain real credentials: store them securely, use `--mask` for reports you share, and delete what you no longer need.
+Only analyse traffic you are authorised to inspect. Captures, evidence files, key logs and outputs contain real credentials: store them securely and delete what you no longer need.
 
 ## License
 

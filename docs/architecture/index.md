@@ -30,7 +30,7 @@ flowchart LR
     T --> S --> X --> P
     T -->|UDP datagrams| P
     P -->|Finding| U
-    K --> C[console · dashboard · jsonl · csv · log<br/>sqlite · html · cef · syslog · webhook · evidence]
+    K --> C[console · live table · jsonl · csv · log<br/>sqlite · cef · syslog · webhook · evidence]
     D -.->|packet observers| K
 ```
 
@@ -41,7 +41,7 @@ flowchart LR
 5. **Protocol plugins** receive stream bytes (`on_data`), gap notices (`on_gap`), UDP payloads (`on_datagram`) and the end of the connection (`on_close`). They emit **findings**.
 6. The **pipeline** drops duplicates, runs enrichers (which may add findings, such as alerts), then hands each finding to every sink and listener.
 
-The [`Session`](../api/session.md) class wires all of this together from a configuration; the CLI and the dashboard are thin layers over it.
+The [`Session`](../api/session.md) class wires all of this together from a configuration; the CLI and the live table are thin layers over it.
 
 ## Module map
 
@@ -60,13 +60,13 @@ The [`Session`](../api/session.md) class wires all of this together from a confi
 | `netcreds_ng.engine.engine` | flow table, client/server roles, plugin dispatch, error isolation |
 | `netcreds_ng.engine.pipeline` | dedup, enrichers, sinks |
 | `netcreds_ng.plugins.api` | the public plugin API (version 1) |
-| `netcreds_ng.plugins.registry` | plugin discovery and selection |
+| `netcreds_ng.plugins.registry` | plugin discovery, plugin sets and selection |
 | `netcreds_ng.plugins.protocols.*` | the 23 protocol plugins and shared helpers (`_util`) |
 | `netcreds_ng.plugins.enrichers.*` | `analytics`, `detection` |
-| `netcreds_ng.plugins.sinks.*` | file, SQLite, HTML, webhook, SIEM and evidence outputs |
+| `netcreds_ng.plugins.sinks.*` | file, SQLite, webhook, SIEM and evidence outputs |
 | `netcreds_ng.proto.*` | protocol parsers shared by plugins: DER/BER, HPACK, NTLMSSP |
-| `netcreds_ng.output.*` | console rendering, masking, CEF/syslog/chat formats |
-| `netcreds_ng.tui.*` | the Textual dashboard and the filter language |
+| `netcreds_ng.output.*` | console rendering, run summary JSON, CEF/syslog/chat formats |
+| `netcreds_ng.tui.*` | the live table (`--tui`) and the filter language |
 | `netcreds_ng.legacy` | the faithful port of the original net-creds (`--legacy`) |
 | `netcreds_ng.testing.*` | packet crafting, message builders, analysis harness, TLS lab |
 

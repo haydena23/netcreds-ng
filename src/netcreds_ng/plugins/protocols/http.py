@@ -235,6 +235,7 @@ def _flatten_json(obj: Any, out: list[tuple[str, str]], depth: int = 0) -> None:
 
 class HTTPPlugin(ProtocolPlugin):
     name = "http"
+    sets = ("web", "legacy")
     description = "HTTP URLs, searches, POST bodies, credentials, auth headers, API keys, cookies, JWTs"
     default_ports = frozenset({80, 8000, 8008, 8080, 8081, 8888, 3128})
     priority = 50

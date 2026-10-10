@@ -1,8 +1,8 @@
 """SIEM sinks: CEF lines to a file, and syslog (RFC 5424, CEF or JSON body) over UDP/TCP.
 
 The syslog sink transmits over the network, so it only runs when explicitly requested
-(``--syslog udp://host:514``). Secrets are masked unless ``include_secrets`` is set, and
-findings below ``min_risk`` (default ``low``) are not sent.
+(``--syslog udp://host:514``). Findings are sent as seen, secrets included; findings below
+``min_risk`` (default ``low``) are not sent.
 """
 
 from __future__ import annotations
@@ -13,27 +13,26 @@ from urllib.parse import urlsplit
 
 from netcreds_ng.model import Finding, RunStats
 from netcreds_ng.output.formats import RISK_ORDER, cef_line, json_event, syslog_message
-from netcreds_ng.output.masking import masked
 from netcreds_ng.plugins.api import SinkContext, SinkPlugin
 from netcreds_ng.plugins.sinks.files import _FileSink
 
 
 class CefSink(_FileSink):
     name = "cef"
-    description = "ArcSight CEF events, one per line (secrets masked with --mask)"
+    description = "ArcSight CEF events, one per line"
 
     def write(self, finding: Finding) -> None:
         assert self.fh is not None
-        self.fh.write(cef_line(self.prepare(finding)) + "\n")
+        self.fh.write(cef_line(finding) + "\n")
         self.fh.flush()
 
 
 class SyslogSink(SinkPlugin):
-    """Options: ``format`` cef|json (default cef), ``min_risk`` (default low), ``include_secrets``
-    (default False), ``hostname``, ``timeout`` seconds (default 5)."""
+    """Options: ``format`` cef|json (default cef), ``min_risk`` (default low), ``hostname``,
+    ``timeout`` seconds (default 5)."""
 
     name = "syslog"
-    description = "Send findings to a syslog collector (udp:// or tcp://; opt-in; secrets masked by default)"
+    description = "Send findings to a syslog collector (udp:// or tcp://; opt-in)"
 
     def __init__(self, target: str | None = None, options: dict[str, Any] | None = None) -> None:
         super().__init__(target, options)
@@ -58,7 +57,7 @@ class SyslogSink(SinkPlugin):
     def write(self, finding: Finding) -> None:
         if RISK_ORDER.get(finding.risk, 0) < RISK_ORDER.get(str(self.options.get("min_risk", "low")), 1):
             return
-        f = finding if self.options.get("include_secrets") else masked(finding)
+        f = finding
         body = json_event(f) if self.options.get("format") == "json" else cef_line(f)
         msg = syslog_message(f, body, self.options.get("hostname")).encode("utf-8")
         assert self.sock is not None

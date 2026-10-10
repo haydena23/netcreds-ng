@@ -262,3 +262,27 @@ def test_malformed_and_truncated_input_no_findings_no_errors() -> None:
     conv.client(register()[:-30])  # truncated before blank line completes
     conv.close()
     assert run_tcp(conv) == []
+
+
+def test_tcp_resync_after_gap_finds_next_message() -> None:
+    # E-5: a long-lived SIP-over-TCP connection used to stop at the first capture gap.
+    conv = TCPConversation(CLIENT, 50004, SERVER, 5060).handshake()
+    conv.client(register(cseq=2)).server(reply(200, "OK", cseq=2))
+    lost = register(cseq=3, user="bob")
+    conv.client(lost[:40]).advance(True, 60).client(lost[100:])  # tail of a message whose head was lost
+    conv.client(register(cseq=4, user="carol"), segment=11)
+    conv.server(reply(100, "Trying", cseq=4)[:30]).advance(False, 25)
+    conv.server(b"partial header line\r\n" + reply(403, "Forbidden", cseq=4))
+    conv.close()
+    found = run_tcp(conv)
+    assert [(f.kind, f.username) for f in found if f.kind is Kind.AUTH_EVENT] == [
+        (Kind.AUTH_EVENT, "alice"), (Kind.AUTH_EVENT, "carol")]
+    assert [(f.username, f.value) for f in found if f.kind is Kind.AUTH_RESULT] == [
+        ("alice", "SIP authentication succeeded"), ("carol", "SIP authentication failed")]
+    assert_no_secrets(found)
+
+
+def test_tcp_gap_before_first_message_detaches() -> None:
+    conv = TCPConversation(CLIENT, 50005, SERVER, 5060).handshake()
+    conv.advance(True, 30).client(register()).close()
+    assert run_tcp(conv) == []

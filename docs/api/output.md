@@ -1,11 +1,5 @@
 # Output helpers
 
-## Masking
-
-::: netcreds_ng.output.masking
-    options:
-      heading_level: 3
-
 ## Wire formats (CEF, syslog, chat)
 
 ::: netcreds_ng.output.formats
@@ -20,7 +14,7 @@
 
 ## Filter language
 
-The [dashboard filter language](../guide/dashboard.md#filter-language), usable on any list of findings:
+The [live table's filter language](../guide/live-table.md#filter-language), usable on any list of findings:
 
 ```python
 from netcreds_ng.tui.filters import parse_filter

@@ -337,3 +337,48 @@ def test_queries_after_login_are_not_reported():
     for _ in range(3):
         c.client(QUERY).server(RESULT)
     assert len(run(c)) == 2
+
+
+# --- E-5: resynchronise after a capture gap ------------------------------------------
+
+
+def test_change_user_after_gaps_in_both_directions_is_reported():
+    c = conv()
+    c.server(server_hello()).client(response(FULL, b"alice", SCRAMBLE)).server(OK)
+    c.client(QUERY[:6]).advance(True, len(QUERY) - 6 + 300)  # the rest of a query and more: lost
+    c.client(b"tail of a lost query')")  # a segment starting mid-packet is skipped
+    c.server(RESULT[:9]).advance(False, 200)  # part of a result set: lost
+    c.server(b"\x01\x02\x03 row bytes")  # mid-packet server segment: skipped
+    c.client(change_user(b"bob", SCRAMBLE)).server(pkt(1, ERR[4:]))
+    found = run(c)
+    assert [(f.kind.value, f.username, f.value) for f in found][2:] == [
+        ("auth_event", "bob", "MySQL change user (mysql_native_password)"), ("auth_result", "bob", "login failed")]
+
+
+def test_change_user_cleartext_after_gap():
+    c = conv()
+    c.server(server_hello()).client(response(FULL, b"alice", SCRAMBLE)).server(OK)
+    c.advance(True, 1000).client(change_user(b"carol", SCRAMBLE))
+    c.server(pkt(1, b"\xfemysql_clear_password\x00"))
+    c.client(pkt(2, b"Fake-Change-Pw\x00")).server(pkt(3, b"\x00\x00\x00\x02\x00\x00\x00"))
+    cred = next(f for f in run(c) if f.kind is Kind.CREDENTIAL)
+    assert (cred.username, cred.secret) == ("carol", "Fake-Change-Pw")
+
+
+def test_gap_during_login_still_detaches():
+    c = conv()
+    c.server(server_hello()).advance(True, 50)  # the HandshakeResponse was lost
+    c.server(OK).client(change_user(b"bob", SCRAMBLE)).server(pkt(1, b"\x00\x00\x00\x02\x00\x00\x00"))
+    assert run(c) == []
+
+
+def test_server_segment_that_is_not_whole_packets_is_not_a_result():
+    # After a gap, a server segment counts only if it is a run of whole packets with consecutive ids.
+    c = conv()
+    c.server(server_hello()).client(response(FULL, b"alice", SCRAMBLE)).server(OK)
+    c.advance(False, 100)
+    c.client(change_user(b"bob", SCRAMBLE))
+    c.server(pkt(1, b"\x00\x00\x00\x02\x00\x00\x00") + b"\x05\x00")  # trailing partial header: skipped
+    c.server(pkt(1, ERR[4:]))
+    assert [(f.kind.value, f.value) for f in run(c)][2:] == [
+        ("auth_event", "MySQL change user (mysql_native_password)"), ("auth_result", "login failed")]

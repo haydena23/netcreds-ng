@@ -21,15 +21,14 @@ RISKS = ("info", "low", "medium", "high")
 
 EPILOG = """\
 examples:
-  netcreds-ng -p capture.pcap                     analyse a capture file
-  netcreds-ng -p captures/ --html report.html     analyse a directory, write an HTML audit report
-  netcreds-ng -p cap.pcapng --jsonl out.jsonl     findings as JSON lines (SIEM ingestion)
-  sudo netcreds-ng -i eth0                        live interactive dashboard
-  sudo netcreds-ng -i eth0 --no-tui -f 10.0.0.5   live, plain output, ignore a host
-  sudo netcreds-ng -i eth0 -q --sqlite run.db     headless capture into a database ...
-  netcreds-ng --attach run.db                     ... and the dashboard on it, from any terminal
+  sudo netcreds-ng                                sniff the default interface, print what is found
+  sudo netcreds-ng -i eth0 -P databases,ftp       only the database plugins and FTP
+  sudo netcreds-ng -i eth0 --disable web          everything except the HTTP plugins
+  netcreds-ng -p capture.pcap -P legacy           what the original net-creds looked for
+  netcreds-ng -p captures/ --jsonl out.jsonl      a directory of captures, findings as JSON lines
+  sudo netcreds-ng -i eth0 --tui                  live table instead of scrolling lines
   netcreds-ng --legacy -p capture.pcap            original net-creds output, byte for byte
-  netcreds-ng --list-plugins                      show available plugins
+  netcreds-ng --list-plugins                      plugins and plugin sets
 
 exit codes: 0 ok, 1 error, 2 usage, 3 warnings with --strict, 130 interrupted
 """
@@ -38,7 +37,8 @@ exit codes: 0 ok, 1 error, 2 usage, 3 warnings with --strict, 130 interrupted
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         prog=APP_NAME,
-        description="Find credentials and weak authentication exposed in network traffic.",
+        description="Sniff live traffic or read captures and print the credentials and weak authentication seen, "
+                    "using the protocol plugins you choose.",
         epilog=EPILOG,
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
@@ -50,33 +50,29 @@ def build_parser() -> argparse.ArgumentParser:
                      help="ignore traffic to/from these hosts (comma separated)")  # fmt: skip
     src.add_argument("-F", "--filterfile", metavar="FILE", help="file with hosts to ignore, one per line")
     src.add_argument("--bpf", metavar="EXPR", help="additional BPF filter for live capture")
-    src.add_argument("--attach", metavar="DB",
-                     help="open the dashboard on a findings database written by --sqlite, and follow it while "
-                          "another netcreds-ng run (e.g. a headless capture) adds to it")  # fmt: skip
 
     out = p.add_argument_group("output")
     out.add_argument("-v", "--verbose", action="store_true", help="do not truncate long values on screen")
     out.add_argument("-q", "--quiet", action="store_true", help="no console output (outputs/files only)")
-    out.add_argument("--tui", dest="tui", action="store_true", default=None, help="interactive dashboard")
-    out.add_argument("--no-tui", dest="tui", action="store_false", help="plain console output")
-    out.add_argument("--mask", action="store_true", help="mask secrets on screen and in outputs")
+    out.add_argument("--tui", dest="tui", action="store_true", default=False,
+                     help="show findings in a live table (pause, filter) instead of scrolling lines")  # fmt: skip
+    out.add_argument("--no-tui", dest="tui", action="store_false", help=argparse.SUPPRESS)  # the default now
     out.add_argument("--no-browsing", action="store_true", help="hide URL/POST/search findings on screen")
     out.add_argument("--min-risk", choices=RISKS, default="info", help="lowest risk shown on screen")
     for fmt, helptext in (
         ("jsonl", "append findings as JSON lines"), ("csv", "append findings as CSV"),
         ("log", "append findings as log lines"), ("sqlite", "store findings in a SQLite database"),
-        ("html", "write an HTML audit report"),
         ("evidence", "write the packets behind each finding to a pcapng file (raw packets, secrets included)"),
         ("cef", "append findings as ArcSight CEF lines"),
     ):  # fmt: skip
         out.add_argument(f"--{fmt}", metavar="PATH", help=helptext)
     out.add_argument("--summary-json", metavar="PATH",
                      help="write the run summary (counters, capture health, analytics; no secrets) as JSON; - for stdout")  # fmt: skip
-    out.add_argument("--webhook", metavar="URL", help="POST findings to a webhook (secrets masked)")
+    out.add_argument("--webhook", metavar="URL", help="POST findings to a webhook (secrets included)")
     out.add_argument("--webhook-format", choices=("generic", "slack", "teams", "discord"),
                      help="webhook payload style (default generic JSON)")  # fmt: skip
     out.add_argument("--syslog", metavar="URL", help="send findings to syslog, udp://host:514 or tcp://host:514 "
-                     "(CEF body; secrets masked)")  # fmt: skip
+                     "(CEF body; secrets included)")  # fmt: skip
     out.add_argument("-o", "--output", action="append", default=[], metavar="FORMAT:PATH",
                      help="generic output, e.g. jsonl:out.jsonl or a plugin-provided format; repeatable")  # fmt: skip
     out.add_argument("--legacy", action="store_true",
@@ -89,9 +85,13 @@ def build_parser() -> argparse.ArgumentParser:
                     help="decrypt TLS sessions found in this NSS key-log file (SSLKEYLOGFILE); needs netcreds-ng[tls]")  # fmt: skip
     an.add_argument("--dedup", choices=("off", "run", "persistent"), default=None, help="duplicate suppression")
     an.add_argument("--dedup-db", metavar="PATH", help="state file for --dedup persistent")
-    an.add_argument("--enable", action="append", default=[], metavar="PLUGINS",
-                    help="enable plugins (comma separated; 'all' includes opt-in plugins)")  # fmt: skip
-    an.add_argument("--disable", action="append", default=[], metavar="PLUGINS", help="disable plugins")
+    an.add_argument("-P", "--plugins", action="append", default=[], metavar="LIST",
+                    help="run only these protocol plugins and plugin sets, comma separated "
+                         "(e.g. databases,ftp; 'all'; see --list-plugins); default: every non-opt-in plugin")  # fmt: skip
+    an.add_argument("--enable", action="append", default=[], metavar="LIST",
+                    help="add plugins or sets (comma separated; 'all' also turns on opt-in plugins)")  # fmt: skip
+    an.add_argument("--disable", action="append", default=[], metavar="LIST",
+                    help="remove plugins or sets (comma separated), e.g. web,keyvalue or the enricher detection")  # fmt: skip
     an.add_argument("--option", action="append", default=[], metavar="PLUGIN.KEY=VALUE", help="plugin option")
     an.add_argument("--plugin-dir", action="append", default=[], metavar="DIR", help="load plugins from directory")
     an.add_argument("--config", metavar="FILE", help="TOML config file (default: ./netcreds-ng.toml)")
@@ -101,7 +101,7 @@ def build_parser() -> argparse.ArgumentParser:
                          "(telnet: Telnet port or option negotiation); disables keyvalue")  # fmt: skip
 
     misc = p.add_argument_group("information")
-    misc.add_argument("--list-plugins", action="store_true", help="list plugins and exit")
+    misc.add_argument("--list-plugins", action="store_true", help="list plugins and plugin sets, and exit")
     misc.add_argument("--list-interfaces", action="store_true", help="list network interfaces and exit")
     misc.add_argument("--debug", action="store_true", help="debug logging to stderr")
     misc.add_argument("--version", action="version", version=f"{APP_NAME} {__version__}")
@@ -160,8 +160,9 @@ def _dispatch(parser: argparse.ArgumentParser, args: argparse.Namespace) -> int:
 
     plugin_cfg: dict[str, Any] = dict(config.get("plugins", {}))
     registry = load_registry(plugin_dirs=args.plugin_dir + list(plugin_cfg.get("dirs", [])))
+    user_sets = _user_sets(config)
     if args.list_plugins:
-        return _list_plugins(registry)
+        return _list_plugins(registry, user_sets)
 
     try:
         hosts = _hosts(args)
@@ -169,14 +170,11 @@ def _dispatch(parser: argparse.ArgumentParser, args: argparse.Namespace) -> int:
         print(f"[ERROR] cannot read filter file: {exc}", file=sys.stderr)
         return EXIT_ERROR
 
-    if args.attach and (args.legacy or args.pcap or args.interface):
-        parser.error("--attach cannot be combined with -p, -i or --legacy")
-    if args.attach and args.tui is False:
-        parser.error("--attach always opens the dashboard; drop --no-tui")
-
     if args.legacy:
         if args.summary_json:
             parser.error("--summary-json cannot be combined with --legacy")
+        if args.plugins or args.enable or args.disable:
+            parser.error("--plugins, --enable and --disable do not apply to --legacy (it runs the original's parsers)")
         return _run_legacy(args, hosts)
 
     # plugin options: config tables, then --option overrides
@@ -184,6 +182,10 @@ def _dispatch(parser: argparse.ArgumentParser, args: argparse.Namespace) -> int:
         k: dict(v) for k, v in plugin_cfg.items() if isinstance(v, dict)
     }
     out_cfg: dict[str, Any] = dict(config.get("output", {}))
+    removed = [key for key in ("mask", "html") if key in out_cfg]
+    if removed:
+        print(f"note: [output] {', '.join(removed)} in the config file is no longer supported and is ignored "
+              "(masking and the HTML report were removed; outputs record findings as seen)", file=sys.stderr)  # fmt: skip
     for name, value in out_cfg.items():
         if isinstance(value, dict):
             plugin_options.setdefault(name, {}).update({k: v for k, v in value.items() if k != "url"})
@@ -197,7 +199,7 @@ def _dispatch(parser: argparse.ArgumentParser, args: argparse.Namespace) -> int:
         plugin_options.setdefault("telnet", {}).setdefault("strict", True)
 
     outputs: list[tuple[str, str]] = []
-    for fmt in ("jsonl", "csv", "log", "sqlite", "html", "evidence", "cef"):
+    for fmt in ("jsonl", "csv", "log", "sqlite", "evidence", "cef"):
         target = getattr(args, fmt) or (out_cfg.get(fmt) if isinstance(out_cfg.get(fmt), str) else None)
         if target:
             outputs.append((fmt, target))
@@ -226,18 +228,26 @@ def _dispatch(parser: argparse.ArgumentParser, args: argparse.Namespace) -> int:
 
     enable = _csv(args.enable) + list(plugin_cfg.get("enable", []))
     disable = _csv(args.disable) + list(plugin_cfg.get("disable", []))
-    unknown = sorted(set(enable + disable) - set(registry.plugins) - {"all"})
-    if unknown:
-        parser.error(f"unknown plugin(s): {', '.join(unknown)} (see --list-plugins)")
+    if args.plugins and not _csv(args.plugins):
+        parser.error("-P/--plugins needs at least one plugin or set name (see --list-plugins)")
+    select_cfg = plugin_cfg.get("select", [])
+    only = _csv(args.plugins) or [str(x) for x in ([select_cfg] if isinstance(select_cfg, str) else select_cfg)]
     if args.strict_heuristics and "keyvalue" in registry.plugins:
         disable.append("keyvalue")
-    mask = args.mask or bool(out_cfg.get("mask", False))
+    try:
+        protocols = registry.select_protocols(enable, disable, {}, only=only, user_sets=user_sets)
+        registry.select_enrichers(enable, disable, {}, user_sets=user_sets)
+    except KeyError as exc:
+        parser.error(f"{exc.args[0]} (see --list-plugins)")
+    if not protocols:
+        parser.error("this selection leaves no protocol plugins to run (see --list-plugins)")
     scfg = SessionConfig(
         enable=enable,
         disable=disable,
+        plugins=only,
+        sets=user_sets,
         plugin_options=plugin_options,
         outputs=outputs,
-        mask_outputs=mask,
         dedup=args.dedup or str(out_cfg.get("dedup", "run")),
         dedup_db=args.dedup_db or out_cfg.get("dedup_db"),
         exclude_hosts=set(hosts),
@@ -246,31 +256,50 @@ def _dispatch(parser: argparse.ArgumentParser, args: argparse.Namespace) -> int:
         jobs=max(1, args.jobs),
         plugin_dirs=args.plugin_dir + list(plugin_cfg.get("dirs", [])),
     )
-    if args.attach:
-        if outputs or args.summary_json:
-            parser.error("--attach reads an existing database; outputs and --summary-json cannot be used with it")
-        return _run_attach(args, registry, scfg, mask)
     if args.pcap:
-        return _run_files(args, registry, scfg, mask)
-    return _run_live(args, registry, scfg, mask, hosts)
+        return _run_files(args, registry, scfg)
+    return _run_live(args, registry, scfg, hosts)
 
 
 # --- modes --------------------------------------------------------------------
 
 
-def _list_plugins(registry: Any) -> int:
+def _user_sets(config: dict[str, Any]) -> dict[str, list[str]]:
+    """``[sets]`` from the config file: ``name = ["plugin", "other-set", ...]``."""
+    raw = config.get("sets", {})
+    if not isinstance(raw, dict):
+        return {}
+    return {str(k): [str(x) for x in v] if isinstance(v, list) else [str(v)] for k, v in raw.items()}
+
+
+def _list_plugins(registry: Any, user_sets: dict[str, list[str]] | None = None) -> int:
     from rich.console import Console
     from rich.table import Table
 
+    from netcreds_ng.plugins.registry import SET_DESCRIPTIONS
+
+    console = Console()
     t = Table(title="netcreds-ng plugins")
-    for col in ("Name", "Kind", "Default", "Source", "Description"):
+    for col in ("Name", "Kind", "Default", "Sets", "Source", "Description"):
         t.add_column(col)
     for info in sorted(registry.plugins.values(), key=lambda i: (i.kind, i.name)):
         default = "opt-in" if getattr(info.cls, "opt_in", False) else ("on" if info.kind != "sink" else "output")
-        t.add_row(info.name, info.kind, default, info.source, info.cls.description)
-    console = Console()
+        sets = ", ".join(getattr(info.cls, "sets", ())) if info.kind == "protocol" else ""
+        t.add_row(info.name, info.kind, default, sets, info.source, info.cls.description)
     console.print(t)
-    for err in registry.load_errors:
+    try:
+        sets_map = registry.plugin_sets(user_sets)
+    except KeyError as exc:
+        console.print(f"[yellow]config [sets]:[/] {exc.args[0]}")
+        sets_map = registry.plugin_sets()
+    st = Table(title="Plugin sets (use with -P/--plugins, --enable, --disable)")
+    for col in ("Set", "Plugins", "About"):
+        st.add_column(col)
+    for name, members in sets_map.items():
+        about = "your set (config file)" if user_sets and name in user_sets else SET_DESCRIPTIONS.get(name, "")
+        st.add_row(name, ", ".join(members), about)
+    console.print(st)
+    for err in registry.load_errors + registry.check_sets():
         console.print(f"[yellow]load error:[/] {err}")
     return EXIT_OK
 
@@ -286,20 +315,7 @@ def _list_interfaces() -> int:
     return EXIT_OK
 
 
-def _run_attach(args: argparse.Namespace, registry: Any, scfg: Any, mask: bool) -> int:
-    from netcreds_ng.tui.store import FindingStore, StoreError
-
-    try:
-        FindingStore(args.attach).close()  # fail here, with a message, rather than inside the dashboard
-    except StoreError as exc:
-        print(f"[ERROR] {exc}", file=sys.stderr)
-        return EXIT_ERROR
-    from netcreds_ng.tui.app import run_tui
-
-    return run_tui(registry, scfg, verbose=args.verbose, mask=mask, attach=args.attach)
-
-
-def _run_files(args: argparse.Namespace, registry: Any, scfg: Any, mask: bool) -> int:
+def _run_files(args: argparse.Namespace, registry: Any, scfg: Any) -> int:
     from netcreds_ng.engine.sources import expand_capture_paths
     from netcreds_ng.output.console import ConsoleRenderer
     from netcreds_ng.session import Session
@@ -316,9 +332,9 @@ def _run_files(args: argparse.Namespace, registry: Any, scfg: Any, mask: bool) -
     if args.tui:
         from netcreds_ng.tui.app import run_tui
 
-        return run_tui(registry, scfg, files=paths, verbose=args.verbose, mask=mask)
+        return run_tui(registry, scfg, files=paths, verbose=args.verbose)
 
-    renderer = ConsoleRenderer(verbose=args.verbose, mask=mask, browsing=not args.no_browsing, quiet=args.quiet)
+    renderer = ConsoleRenderer(verbose=args.verbose, browsing=not args.no_browsing, quiet=args.quiet)
     min_risk = RISKS.index(args.min_risk)
 
     def show(f: Any) -> None:
@@ -357,7 +373,7 @@ def _write_summary_json(args: argparse.Namespace, session: Any) -> bool:
     return True
 
 
-def _run_live(args: argparse.Namespace, registry: Any, scfg: Any, mask: bool, hosts: list[str]) -> int:
+def _run_live(args: argparse.Namespace, registry: Any, scfg: Any, hosts: list[str]) -> int:
     from netcreds_ng.engine.sources import LiveCapture, bpf_exclude, capture_permission_problem, default_interface
     from netcreds_ng.output.console import ConsoleRenderer
     from netcreds_ng.session import Session
@@ -372,13 +388,12 @@ def _run_live(args: argparse.Namespace, registry: Any, scfg: Any, mask: bool, ho
               " or analyse a capture file with -p", file=sys.stderr)  # fmt: skip
         return EXIT_ERROR
     bpf = bpf_exclude(hosts, args.bpf)
-    use_tui = args.tui if args.tui is not None else (sys.stdout.isatty() and not args.quiet)
-    if use_tui:
+    if args.tui:
         from netcreds_ng.tui.app import run_tui
 
-        return run_tui(registry, scfg, interface=iface, bpf=bpf, verbose=args.verbose, mask=mask)
+        return run_tui(registry, scfg, interface=iface, bpf=bpf, verbose=args.verbose)
 
-    renderer = ConsoleRenderer(verbose=args.verbose, mask=mask, browsing=not args.no_browsing, quiet=args.quiet)
+    renderer = ConsoleRenderer(verbose=args.verbose, browsing=not args.no_browsing, quiet=args.quiet)
     min_risk = RISKS.index(args.min_risk)
     def show(f: Any) -> None:
         if RISKS.index(f.risk) >= min_risk:

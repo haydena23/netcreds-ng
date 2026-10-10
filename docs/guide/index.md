@@ -4,10 +4,11 @@ Task-oriented guides for running netcreds-ng.
 
 | Guide | Read it when you want to |
 | --- | --- |
-| [Analysing captures](analysing-captures.md) | audit pcap/pcapng files: directories, parallel analysis, host filters, masking, exit codes |
+| [Analysing captures](analysing-captures.md) | read pcap/pcapng files: directories, parallel analysis, host filters, exit codes |
 | [Live capture](live-capture.md) | watch an interface in real time |
-| [Interactive dashboard](dashboard.md) | browse, filter and drill into findings, live or from a file |
-| [Configuration](configuration.md) | keep options in a TOML file, choose plugins, set plugin options |
+| [Choosing plugins](choosing-plugins.md) | run only some plugins, use and define plugin sets |
+| [Live table](live-table.md) | see findings in a table you can pause and filter (`--tui`) |
+| [Configuration](configuration.md) | keep options in a TOML file, define plugin sets, set plugin options |
 | [TLS decryption](tls-decryption.md) | look inside HTTPS, SMTPS and STARTTLS sessions you hold keys for |
 | [Alerts and analytics](detections.md) | understand brute-force alerts, weak passwords, reuse, the service inventory and host scores |
 | [Legacy mode](legacy.md) | keep scripts that parse the original net-creds output working |

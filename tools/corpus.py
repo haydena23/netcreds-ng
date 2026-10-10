@@ -328,9 +328,11 @@ def ng_identities(findings: list[Any]) -> list[tuple[str, frozenset[str]]]:
 
 
 def _mask(value: str) -> str:
-    from netcreds_ng.output.masking import mask_value
-
-    return mask_value(value) or ""
+    """Keep only the length and first/last character, so corpus reports never print secrets."""
+    n = len(value)
+    if n <= 2:
+        return "*" * n + (f" ({n})" if n else "")
+    return f"{value[0]}{'*' * min(n - 2, 12)}{value[-1]} ({n})"
 
 
 def show(category: str, value: str) -> str:

@@ -1,4 +1,4 @@
-"""Registry, plugin isolation, pipeline/dedup, enrichers, masking and robustness."""
+"""Registry, plugin isolation, pipeline/dedup, enrichers and robustness."""
 
 from __future__ import annotations
 
@@ -11,7 +11,6 @@ from netcreds_ng.engine.engine import Engine
 from netcreds_ng.engine.pcapio import RawFrame
 from netcreds_ng.engine.pipeline import Deduplicator, Pipeline
 from netcreds_ng.model import Endpoint, Finding, Kind, RunStats
-from netcreds_ng.output.masking import mask_value
 from netcreds_ng.plugins.api import PLUGIN_API, ProtocolPlugin
 from netcreds_ng.plugins.enrichers.analytics import AnalyticsEnricher
 from netcreds_ng.plugins.registry import Registry, load_registry
@@ -74,6 +73,47 @@ def test_opt_in_and_unknown_selection():
         raise AssertionError("unknown plugin accepted")
 
 
+def test_plugin_sets_from_plugins_and_user():
+    class Ext(ProtocolPlugin):
+        name = "acme-db"
+        sets = ("databases", "acme")  # joins a built-in set and declares its own
+
+    class Hidden(ProtocolPlugin):
+        name = "acme-extra"
+        opt_in = True
+        sets = ("acme",)
+
+    class Clash(ProtocolPlugin):
+        name = "acme-clash"
+        sets = ("ftp", "all")  # set names that clash with a plugin / a reserved set
+
+    reg = load_registry(use_entry_points=False)
+    for cls in (Ext, Hidden, Clash):
+        reg.add(cls, "test")
+    sets = reg.plugin_sets()
+    assert "acme-db" in sets["databases"] and sets["acme"] == ["acme-db", "acme-extra"]
+    assert "acme-extra" in sets["all"] and "acme-extra" not in sets["default"]
+    assert "ftp" not in sets and len(reg.check_sets()) == 2
+    # naming a set selects its opt-in members too; the default leaves them out
+    assert {p.name for p in reg.select_protocols(only=["acme"])} == {"acme-db", "acme-extra"}
+    assert "acme-extra" not in {p.name for p in reg.select_protocols()}
+    # user sets nest, may extend a built-in set, and are validated
+    user = {"mine": ["acme", "telnet"], "databases": ["mqtt"], "both": ["mine", "databases"]}
+    sets = reg.plugin_sets(user)
+    assert sets["mine"] == ["acme-db", "acme-extra", "telnet"]
+    assert "mqtt" in sets["databases"] and "mysql" in sets["databases"]
+    assert set(sets["both"]) == set(sets["mine"]) | set(sets["databases"])
+    for bad in ({"ftp": ["telnet"]}, {"default": ["ftp"]}, {"a": ["b"], "b": ["a"]}, {"x": ["analytics"]}):
+        try:
+            reg.plugin_sets(bad)
+        except KeyError:
+            continue
+        raise AssertionError(f"accepted {bad}")
+    # disable accepts sets and enricher names
+    assert not {"http", "http2"} & {p.name for p in reg.select_protocols(disable=["web"])}
+    assert [e.name for e in reg.select_enrichers(disable=["detection"])] == ["analytics"]
+
+
 def test_failing_plugin_is_isolated_and_counted():
     class Boom(ProtocolPlugin):
         name = "boom"
@@ -126,12 +166,6 @@ def test_analytics_weak_and_reused_passwords():
     assert f2.extra["secret_fingerprint"] == f3.extra["secret_fingerprint"]
     assert "Uniq-Fake-77" not in repr(an.summary())
     assert an.summary()["weak_passwords"] == 1 and an.summary()["reused_secrets"] == 1
-
-
-def test_mask_value():
-    assert mask_value("FakePass-123") == "F**********3 (12)"
-    assert mask_value("ab") == "** (2)"
-    assert mask_value("") == ""
 
 
 # --- robustness ------------------------------------------------------------------
@@ -197,3 +231,18 @@ def test_large_capture_memory_is_bounded():
     assert eng.active_flows <= 3000
     eng.finish()
     assert eng.active_flows == 0 and stats.total_plugin_errors == 0
+
+
+def test_plugin_sets_declared_as_a_string_and_shared_user_sets():
+    # M31 validation F2/F5: sets = "x" is one set (not one per letter); shared user sub-sets resolve once.
+    class Ext(ProtocolPlugin):
+        name = "acme-str"
+        sets = "acme2"  # type: ignore[assignment]  # a common slip for ("acme2",)
+
+    reg = load_registry(use_entry_points=False)
+    reg.add(Ext, "test")
+    sets = reg.plugin_sets()
+    assert sets["acme2"] == ["acme-str"] and "a" not in sets
+    assert any("as a string" in p for p in reg.check_sets())
+    chain = {"s0": ["ftp"], **{f"s{n}": [f"s{n - 1}", f"s{n - 1}"] for n in range(1, 40)}}
+    assert reg.plugin_sets(chain)["s39"] == ["ftp"]  # exponential without memoisation

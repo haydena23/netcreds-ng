@@ -154,3 +154,22 @@ def test_not_mqtt_streams_produce_nothing():
     c = conv()
     c.server(connack(0))  # server-first: not an MQTT conversation shape
     assert run(c) == []
+
+
+def test_client_gap_after_connect_keeps_the_connack_verdict():
+    # E-5: client bytes lost after the CONNECT (e.g. a PUBLISH) used to detach the plugin before the CONNACK.
+    c = conv()
+    c.client(connect()).client(b"\x30\x0b\x00\x03a/b").advance(True, 200).client(b"\x30\x05\x00\x03a/bx")
+    c.server(connack(5)).close()
+    cred, res = run(c)
+    assert (cred.kind, cred.username) == (Kind.CREDENTIAL, "mqtt-user")
+    assert (res.kind, res.username, res.value) == (Kind.AUTH_RESULT, "mqtt-user", "login failed")
+
+
+def test_gap_before_connect_or_connack_detaches():
+    c = conv()
+    c.advance(True, 30).client(connect()).server(connack(0)).close()
+    assert run(c) == []
+    c = conv()
+    c.client(connect()).advance(False, 4).server(connack(0)).close()
+    assert [f.kind for f in run(c)] == [Kind.CREDENTIAL]

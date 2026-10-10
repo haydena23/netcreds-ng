@@ -237,6 +237,40 @@ def test_kerberos_account_state_errors_are_failures(code, verdict):
     assert result.extra["error_code"] == code
 
 
+@pytest.mark.parametrize(
+    "pa_types,user,method,tags",
+    [
+        ((133, 16, 149), "fakeuser", "PKINIT", ["pkinit"]),
+        ((14,), "fakeuser", "PKINIT", ["pkinit"]),
+        ((133, 16, 149), "WELLKNOWN/ANONYMOUS", "PKINIT", ["anonymous", "pkinit"]),
+        ((136, 149), "fakeuser", "FAST armored", ["fast"]),
+    ],
+)
+def test_kerberos_pkinit_and_fast_are_preauthenticated(pa_types, user, method, tags):
+    # M32, real traffic (zeek krb/kinit.pcap): a PKINIT AS-REQ answered by an AS-REP was reported as
+    # "AS-REP issued without pre-authentication" (high), because only PA-ENC-TIMESTAMP counted as pre-auth.
+    from netcreds_ng.testing.packets import udp_frame
+    from netcreds_ng.testing.protocols import as_req, kdc_rep
+
+    frames = [udp_frame(C, 51000, S, 88, as_req(user, "EXAMPLE.TEST", preauth_etype=None, offered=(18,),
+                                                 pa_types=pa_types)),
+              udp_frame(S, 88, C, 51000, kdc_rep(0x6B, user, "EXAMPLE.TEST", ("krbtgt", "EXAMPLE.TEST")))]  # fmt: skip
+    (ev,) = [x for x in analyze(frames, enrichers=[]) if x.plugin == "kerberos"]
+    assert (ev.kind, ev.username, ev.value, ev.risk) == (
+        Kind.AUTH_EVENT, user, f"Kerberos pre-authentication ({method})", "low")
+    assert ev.tags == tags and "no-preauth" not in ev.tags
+
+
+def test_kerberos_as_rep_without_any_preauth_is_still_flagged():
+    from netcreds_ng.testing.packets import udp_frame
+    from netcreds_ng.testing.protocols import as_req, kdc_rep
+
+    frames = [udp_frame(C, 51000, S, 88, as_req("fakeuser", "EXAMPLE.TEST", preauth_etype=None, pa_types=(149,))),
+              udp_frame(S, 88, C, 51000, kdc_rep(0x6B, "fakeuser", "EXAMPLE.TEST", ("krbtgt", "EXAMPLE.TEST")))]  # fmt: skip
+    (ev,) = [x for x in analyze(frames, enrichers=[]) if x.plugin == "kerberos"]
+    assert (ev.value, ev.risk, ev.tags) == ("AS-REP issued without pre-authentication", "high", ["no-preauth"])
+
+
 def test_kerberos_other_errors_are_not_login_results():
     from netcreds_ng.testing.packets import udp_frame
     from netcreds_ng.testing.protocols import as_req, krb_error

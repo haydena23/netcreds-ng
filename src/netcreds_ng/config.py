@@ -3,18 +3,19 @@
 Example::
 
     [plugins]
-    enable = ["all"]          # include opt-in plugins
+    select = ["databases", "ftp", "mine"]   # like --plugins; omit to run every non-opt-in plugin
     disable = ["keyvalue"]
 
     [plugins.http]
     cookies = "all"           # session | all | off
     urls = true
 
+    [sets]                    # your own plugin sets, usable anywhere a set name is
+    mine = ["telnet", "remote-access", "snmp"]
+
     [output]
-    mask = true
     dedup = "run"             # off | run | persistent
     jsonl = "findings.jsonl"
-    html = "report.html"
 
     [output.webhook]
     url = "https://siem.example/hook"

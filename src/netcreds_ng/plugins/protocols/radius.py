@@ -143,6 +143,7 @@ def _extra(attrs: list[tuple[int, bytes]]) -> dict[str, object]:
 
 class RadiusPlugin(ProtocolPlugin):
     name = "radius"
+    sets = ("aaa", "network")
     description = "RADIUS: PAP/CHAP/MS-CHAP/EAP login metadata, EAP identities, access results"
     transports = frozenset({Transport.UDP})
     default_ports = STANDARD_PORTS

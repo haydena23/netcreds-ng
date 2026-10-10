@@ -4,14 +4,14 @@
 
 Everything netcreds-ng reports is a **finding**: one structured record with a protocol, a kind, a risk, the two endpoints, the capture time and frame number, and kind-specific fields (username, secret, domain, value, tags, extra details).
 
-The same record goes to the console, the dashboard and every output. A JSON Lines file, the HTML report and the SQLite database all hold the same findings. The full field list is in the [findings reference](../reference/findings.md).
+The same record goes to the console and every output. A JSON Lines file and the SQLite database hold the same findings. The full field list is in the [findings reference](../reference/findings.md).
 
 ```mermaid
 flowchart LR
     P[Protocol plugin] -->|emits| F((Finding))
     F --> D[De-duplication]
     D --> E[Enrichers<br/>analytics, detection]
-    E --> S[Console / dashboard<br/>and every output]
+    E --> S[Console / live table<br/>and every output]
 ```
 
 ## Kinds
@@ -35,9 +35,9 @@ The `kind` says what a finding represents.
 | `info` | info | other context, such as an Oracle connect descriptor or a TACACS+ command | no |
 | `alert` | ALERT | a behavioural detection such as brute force, raised by an enricher | no |
 
-The kinds marked *secret* are the ones `--mask` masks and the ones that count as cleartext exposure.
+The kinds marked *secret* are the ones that count as cleartext exposure.
 
-`url`, `post` and `search` are **browsing** findings. They show what users did rather than how they authenticated. Hide them with `--no-browsing` on screen, `b` in the dashboard, or `--option http.urls=false` to stop collecting URLs.
+`url`, `post` and `search` are **browsing** findings. They show what users did rather than how they authenticated. Hide them with `--no-browsing` on screen, `-kind:url` in the live table's filter, or `--option http.urls=false` to stop collecting URLs.
 
 ## Credentials versus authentication events
 
@@ -65,7 +65,7 @@ Every finding has a risk level. Plugins set it, and enrichers can raise it.
 | **low** | strong authentication observed (Kerberos AES, RDP with NLA), RDP cookie usernames, connection metadata |
 | **info** | login results, most usernames seen alone, URLs, searches, POST bodies, other context |
 
-Filter by risk with `--min-risk` on the console, `r` in the dashboard, or `min_risk` on network outputs.
+Filter by risk with `--min-risk` on the console, `risk:medium+` in the live table, or `min_risk` on network outputs.
 
 ## Tags
 

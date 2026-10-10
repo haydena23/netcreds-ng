@@ -36,7 +36,7 @@ $ netcreds-ng -p office.pcapng
 
     ---
 
-    Capture files, live capture, the dashboard, configuration, TLS decryption and alerts.
+    Live capture, capture files, choosing plugins, configuration, TLS decryption and alerts.
 
     [:octicons-arrow-right-24: User guide](guide/index.md)
 
@@ -74,13 +74,13 @@ $ netcreds-ng -p office.pcapng
 :   Brute force, password spraying, one account attacked from many clients, and a success after a burst of failures. Weak passwords, password reuse, an inventory of services exposing cleartext secrets, and a 0–100 exposure score per host. See [alerts and analytics](guide/detections.md).
 
 **Outputs for people and machines.**
-:   A coloured console, an interactive dashboard, JSON Lines, CSV, SQLite, CEF, syslog, webhooks for Slack/Teams/Discord, a self-contained HTML audit report with an executive summary, and an evidence pcapng holding exactly the packets behind each finding. See [outputs and integrations](reference/outputs.md).
+:   A coloured console (or a live table with `--tui`), JSON Lines, CSV, SQLite, CEF, syslog, webhooks for Slack/Teams/Discord, and an evidence pcapng holding exactly the packets behind each finding. See [outputs and integrations](reference/outputs.md).
 
 **Nothing dropped silently.**
 :   Parsing problems, capture gaps, plugin errors, undecryptable TLS sessions and ambiguous connections are all counted and shown in the run summary. `--strict` turns them into a non-zero exit code.
 
-**A plugin system.**
-:   Protocols, enrichers and outputs are all plugins, discovered from installed packages, a directory, or the built-ins. See [writing plugins](plugins/index.md).
+**Pick the plugins you want.**
+:   Every protocol is a plugin. Run them all, only the ones you name, named sets (`databases`, `web`, `remote-access`, `legacy`...), or sets you define. Third-party plugins install like any package. See [choosing plugins](guide/choosing-plugins.md) and [writing plugins](plugins/index.md).
 
 **Backwards compatible.**
 :   It is the Python 3 successor of Dan McInerney's [net-creds](https://github.com/DanMcInerney/net-creds). `--legacy` reproduces the original's output byte for byte, which the test suite checks against output recorded from the original Python 2 tool. See [legacy mode](guide/legacy.md).
@@ -93,8 +93,8 @@ netcreds-ng reports exposure. It never extracts or formats material for password
 - There is no hashcat/John export, no Kerberos roasting, and nothing that tests whether captured material is crackable.
 - Obfuscated secrets protected by a shared key (RADIUS User-Password, encrypted TACACS+ bodies) are never decrypted and the key is never guessed.
 
-Cleartext credentials, on the other hand, are reported in full, because they *are* the exposure. Use [`--mask`](guide/analysing-captures.md#masking-secrets) for anything you share.
+Cleartext credentials, on the other hand, are reported in full, because they *are* the exposure.
 
 !!! warning "Responsible use"
 
-    Only analyse traffic you are authorised to inspect. Captures, evidence files, key logs and outputs contain real credentials: store them securely, use `--mask` for reports you share, and delete what you no longer need.
+    Only analyse traffic you are authorised to inspect. Captures, evidence files, key logs and outputs contain real credentials: store them securely and delete what you no longer need.

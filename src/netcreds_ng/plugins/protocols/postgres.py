@@ -11,7 +11,7 @@ from dataclasses import dataclass, field
 
 from netcreds_ng.model import Kind
 from netcreds_ng.plugins.api import Context, Direction, FlowInfo, ProtocolPlugin
-from netcreds_ng.plugins.protocols._util import text
+from netcreds_ng.plugins.protocols._util import text, whole_messages
 
 _MAX_BUFFER = 1024 * 1024
 _MAX_MESSAGE = 64 * 1024
@@ -33,10 +33,33 @@ class _State:
     method: str | None = None  # "cleartext" | "md5" | "sasl" | "other"
     reported: bool = False  # client's password/SASL message already reported
     password_seen: bool = False
+    resync: list[bool] = field(default_factory=lambda: [False, False])  # after a gap, per direction (E-5)
+    server_gap: bool = False
+
+
+_SERVER_TYPES = frozenset({0x52, 0x45, 0x4E, 0x53, 0x4B, 0x5A})  # R E N S K Z
+#: Frontend message types after the StartupMessage (PostgreSQL protocol 3.0).
+_CLIENT_TYPES = frozenset(b"pQPBEDCSHFcdfX")
+
+
+def _message_end(data: bytes, pos: int, types: frozenset[int]) -> int | None:
+    if pos + 5 > len(data) or data[pos] not in types:
+        return None
+    length = struct.unpack_from("!I", data, pos + 1)[0]
+    return pos + 1 + length if 4 <= length <= _MAX_MESSAGE else None
+
+
+def _server_message_end(data: bytes, pos: int) -> int | None:
+    return _message_end(data, pos, _SERVER_TYPES)
+
+
+def _client_message_end(data: bytes, pos: int) -> int | None:
+    return _message_end(data, pos, _CLIENT_TYPES)
 
 
 class PostgresPlugin(ProtocolPlugin):
     name = "postgres"
+    sets = ("databases",)
     description = "PostgreSQL logins: cleartext passwords and login metadata (any port)"
     default_ports = frozenset({5432})
     priority = 91
@@ -44,8 +67,27 @@ class PostgresPlugin(ProtocolPlugin):
     def new_state(self, flow: FlowInfo) -> _State:
         return _State()
 
+    def on_gap(self, ctx: Context, direction: Direction, size: int) -> None:
+        st: _State = ctx.state
+        if not st.started or st.pending_enc:
+            ctx.detach()  # no StartupMessage yet: nothing to resynchronise to
+            return
+        # Messages after the StartupMessage are typed and length-prefixed: resume at the next
+        # segment made of whole messages (E-5). The verdict (AuthenticationOk/ErrorResponse) and a
+        # later password message are still found; a lost authentication request leaves the method
+        # unknown, so a password message after it is not reported.
+        st.bufs[direction].clear()
+        st.resync[direction] = True
+        if direction is Direction.SERVER_TO_CLIENT:
+            st.server_gap = True  # an authentication request may be lost: AuthenticationOk is not "trust"
+
     def on_data(self, ctx: Context, direction: Direction, data: bytes) -> None:
         st: _State = ctx.state
+        if st.resync[direction]:
+            client = direction is Direction.CLIENT_TO_SERVER
+            if not whole_messages(data, _client_message_end if client else _server_message_end):
+                return  # mid-message: wait for the next segment
+            st.resync[direction] = False
         st.bufs[direction].extend(data)
         self._pump(ctx, st)
 
@@ -175,7 +217,7 @@ class PostgresPlugin(ProtocolPlugin):
                 break
             mtype = buf[0]
             length = struct.unpack_from("!I", buf, 1)[0]
-            if mtype not in (0x52, 0x45, 0x4E, 0x53, 0x4B, 0x5A) or length < 4 or length > _MAX_MESSAGE:
+            if mtype not in _SERVER_TYPES or length < 4 or length > _MAX_MESSAGE:
                 ctx.detach()
                 return True
             if len(buf) < 1 + length:
@@ -197,7 +239,7 @@ class PostgresPlugin(ProtocolPlugin):
             return
         code = struct.unpack_from("!I", body, 0)[0]
         if code == 0:
-            if st.method is None:
+            if st.method is None and not st.server_gap:
                 ctx.emit(
                     Direction.SERVER_TO_CLIENT, Kind.AUTH_EVENT, protocol="PostgreSQL", reverse=True,
                     username=st.params.get("user"), value="PostgreSQL login without password (trust)",

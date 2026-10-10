@@ -5,7 +5,7 @@ formats with distinctive shapes: AWS access keys (optionally paired with a
 nearby secret access key), GCP API keys and service-account key files, Azure
 storage account keys and SAS tokens, GitHub, Slack and Stripe tokens, and PEM
 private-key blocks. A token that crossed the wire in cleartext is the exposure,
-so it is reported as seen (in ``secret``, which ``--mask`` masks). PEM blocks
+so it is reported as seen (in ``secret``). PEM blocks
 are reported by header type and length only; the key body is never kept.
 
 JWTs are reported by the HTTP plugin and are not duplicated here.
@@ -91,6 +91,7 @@ class _State:
 
 class SecretsPlugin(ProtocolPlugin):
     name = "secrets"
+    sets = ("generic",)
     description = "Cloud/API credential formats (AWS, GCP, Azure, GitHub, Slack, Stripe, PEM keys) in cleartext streams"
     priority = 210  # after http (50) and keyvalue (200)
 

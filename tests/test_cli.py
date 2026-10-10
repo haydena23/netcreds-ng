@@ -9,11 +9,13 @@ import sys
 
 import pytest
 
+import netcreds_ng.session as session_mod
 from conftest import GOLDEN, ROOT, SYNTHETIC
 from netcreds_ng import __version__
 from netcreds_ng.cli import EXIT_ERROR, EXIT_OK, EXIT_WARNINGS, main
 
 FTP = str(SYNTHETIC / "ftp_basic.pcap")
+_SESSION_INIT = session_mod.Session.__init__
 
 
 def test_version(capsys):
@@ -27,7 +29,7 @@ def test_help_mentions_original_flags(capsys):
     with pytest.raises(SystemExit):
         main(["--help"])
     out = capsys.readouterr().out
-    for flag in ("-p", "-i", "-f", "-v", "--legacy", "--html", "--jsonl"):
+    for flag in ("-p", "-i", "-f", "-v", "--legacy", "--jsonl", "--plugins", "--tui"):
         assert flag in out
 
 
@@ -40,15 +42,16 @@ def test_pcap_console_output_and_summary(capsys, tmp_path, monkeypatch):
     assert not (tmp_path / "credentials.txt").exists(), "only --legacy writes credentials.txt"
 
 
-def test_mask_hides_secrets(capsys):
-    assert main(["-p", FTP, "--no-tui", "--mask"]) == EXIT_OK
-    out = capsys.readouterr().out
-    assert "FakePass-123" not in out and "F**********3 (12)" in out
+@pytest.mark.parametrize("flag", ["--mask", "--html=r.html", "--attach=run.db"])
+def test_removed_options_are_usage_errors(flag):
+    with pytest.raises(SystemExit) as exc:
+        main(["-p", FTP, flag])
+    assert exc.value.code == 2
 
 
-def test_outputs_jsonl_csv_sqlite_html(tmp_path):
-    j, c, d, h = (tmp_path / n for n in ("o.jsonl", "o.csv", "o.db", "r.html"))
-    rc = main(["-p", str(SYNTHETIC), "-q", "--jsonl", str(j), "--csv", str(c), "--sqlite", str(d), "--html", str(h)])
+def test_outputs_jsonl_csv_sqlite(tmp_path):
+    j, c, d = (tmp_path / n for n in ("o.jsonl", "o.csv", "o.db"))
+    rc = main(["-p", str(SYNTHETIC), "-q", "--jsonl", str(j), "--csv", str(c), "--sqlite", str(d)])
     assert rc == EXIT_OK
     rows = [json.loads(line) for line in j.read_text(encoding="utf-8").splitlines()]
     assert any(r.get("username") == "fakeuser" and r.get("secret") == "FakePass-123" for r in rows)
@@ -59,22 +62,6 @@ def test_outputs_jsonl_csv_sqlite_html(tmp_path):
     assert con.execute("SELECT COUNT(*) FROM findings").fetchone()[0] == len(rows)
     assert con.execute("SELECT findings FROM runs").fetchone()[0] == len(rows)
     con.close()
-    report = h.read_text(encoding="utf-8")
-    assert "<title>Credential Exposure Report</title>" in report
-    assert "FakePass-123" not in report, "HTML reports mask secrets by default"
-
-
-def test_html_report_escapes_markup(tmp_path):
-    from netcreds_ng.testing.packets import TCPConversation, write_pcap
-
-    conv = TCPConversation("192.0.2.1", 50000, "198.51.100.1", 21).handshake()
-    conv.server(b"220 x\r\n").client(b"USER <script>alert(1)</script>\r\nPASS x\r\n").close()
-    cap = tmp_path / "xss.pcap"
-    write_pcap(str(cap), conv.frames)
-    report = tmp_path / "r.html"
-    assert main(["-p", str(cap), "-q", "--html", str(report)]) == EXIT_OK
-    text = report.read_text(encoding="utf-8")
-    assert "<script>alert(1)</script>" not in text and "&lt;script&gt;" in text
 
 
 def test_missing_capture(capsys):
@@ -116,14 +103,17 @@ def test_unknown_plugin_name_is_usage_error(capsys, flag):
         main(["-p", FTP, "--no-tui", flag, "ftp,nosuchplugin"])
     assert exc.value.code == 2
     err = capsys.readouterr().err
-    assert "unknown plugin(s): nosuchplugin" in err
+    assert "unknown plugin(s) or set(s): nosuchplugin" in err
     assert "Traceback" not in err
 
 
 def test_list_plugins(capsys):
     assert main(["--list-plugins"]) == EXIT_OK
     out = capsys.readouterr().out
-    for name in ("ftp", "http", "kerberos", "ldap", "mysql", "postgres", "redis", "sip", "vnc", "mqtt", "jsonl", "html"):
+    for name in ("ftp", "http", "kerberos", "ldap", "mysql", "postgres", "redis", "sip", "vnc", "mqtt", "jsonl"):
+        assert name in out
+    assert "Plugin sets" in out
+    for name in ("databases", "legacy", "remote-access", "default"):
         assert name in out
 
 
@@ -150,38 +140,93 @@ def test_legacy_missing_file(capsys):
 
 def test_installed_entry_point_subprocess(tmp_path):
     proc = subprocess.run(
-        [sys.executable, "-B", "-m", "netcreds_ng", "-p", FTP, "--no-tui", "--mask", "--jsonl", "-"],
-        capture_output=True, text=True, cwd=tmp_path, timeout=120,
+        [sys.executable, "-B", "-m", "netcreds_ng", "-p", FTP, "--jsonl", "-"],
+        capture_output=True, text=True, encoding="utf-8", cwd=tmp_path, timeout=120,
     )  # fmt: skip
     assert proc.returncode == 0, proc.stderr
     assert any(json.loads(line).get("username") == "fakeuser" for line in proc.stdout.splitlines() if line.startswith("{"))
     assert str(ROOT) not in proc.stderr
 
 
-@pytest.mark.parametrize("extra", [["-p", FTP], ["--legacy"], ["--no-tui"], ["--jsonl", "x.jsonl"]])
-def test_attach_rejects_other_modes(tmp_path, capsys, extra):
-    db = tmp_path / "run.db"
-    assert main(["-p", FTP, "-q", "--sqlite", str(db)]) == EXIT_OK
+def _protocols_run(monkeypatch, argv: list[str]) -> list[str]:
+    """Run main() with ``argv`` and return the names of the protocol plugins the session used."""
+    seen: list[str] = []
+    real = _SESSION_INIT
+
+    def spy(self, *a, **k):  # type: ignore[no-untyped-def]
+        real(self, *a, **k)
+        seen.extend(sorted(p.name for p in self.protocols))
+
+    monkeypatch.setattr(session_mod.Session, "__init__", spy)
+    assert main(["-p", FTP, "-q", *argv]) == EXIT_OK
+    return seen
+
+
+def test_plugins_selects_only_named_plugins_and_sets(monkeypatch):
+    assert _protocols_run(monkeypatch, ["-P", "ftp"]) == ["ftp"]
+    assert _protocols_run(monkeypatch, ["--plugins", "databases,ftp"]) == ["ftp", "mssql", "mysql", "oracle",
+                                                                            "postgres", "redis"]  # fmt: skip
+    assert _protocols_run(monkeypatch, ["-P", "legacy", "--disable", "keyvalue,web"]) == [
+        "ftp", "irc", "kerberos", "mail", "ntlm", "snmp", "telnet"]  # fmt: skip
+    everything = _protocols_run(monkeypatch, [])
+    assert "ftp" in everything and "mysql" in everything
+    assert "http" not in _protocols_run(monkeypatch, ["--disable", "web"])
+    assert _protocols_run(monkeypatch, ["-P", "all"]) == everything  # no opt-in built-ins today
+
+
+def test_plugins_selection_finds_only_what_was_asked(capsys):
+    assert main(["-p", FTP, "-P", "databases"]) == EXIT_OK
+    assert "fakeuser" not in capsys.readouterr().out
+    assert main(["-p", FTP, "-P", "file-transfer"]) == EXIT_OK
+    assert "fakeuser:FakePass-123" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize(("argv", "message"), [
+    (["-P", "nosuch"], "unknown plugin(s) or set(s): nosuch"),
+    (["-P", "detection"], "not protocol plugins: detection"),
+    (["-P", "ftp", "--disable", "ftp"], "leaves no protocol plugins"),
+    (["-P", ","], "needs at least one plugin or set name"),  # M31 validation F1: not "everything"
+    (["-P", ""], "needs at least one plugin or set name"),
+])  # fmt: skip
+def test_plugins_selection_errors(capsys, argv, message):
     with pytest.raises(SystemExit) as exc:
-        main(["--attach", str(db), *extra])
-    assert exc.value.code == 2 and "--attach" in capsys.readouterr().err
+        main(["-p", FTP, *argv])
+    assert exc.value.code == 2 and message in capsys.readouterr().err
 
 
-def test_attach_bad_database(tmp_path, capsys):
-    assert main(["--attach", str(tmp_path / "missing.db")]) == EXIT_ERROR
-    assert "database not found" in capsys.readouterr().err
-    notdb = tmp_path / "notes.txt"
-    notdb.write_text("not a database " * 100, encoding="utf-8")
-    assert main(["--attach", str(notdb)]) == EXIT_ERROR
-    assert "not a netcreds-ng database" in capsys.readouterr().err
+def test_plugins_not_allowed_with_legacy(capsys):
+    with pytest.raises(SystemExit) as exc:
+        main(["--legacy", "-p", FTP, "-P", "ftp"])
+    assert exc.value.code == 2 and "do not apply to --legacy" in capsys.readouterr().err
 
 
-def test_attach_opens_dashboard(tmp_path, monkeypatch):
-    import netcreds_ng.tui.app as tui_app
+def test_config_select_and_user_sets(tmp_path, monkeypatch, capsys):
+    (tmp_path / "netcreds-ng.toml").write_text(
+        '[plugins]\nselect = ["mine"]\n\n[sets]\nmine = ["file-transfer", "telnet"]\n', encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    assert _protocols_run(monkeypatch, []) == ["ftp", "telnet"]
+    assert _protocols_run(monkeypatch, ["-P", "mine,redis"]) == ["ftp", "redis", "telnet"]  # -P overrides select
+    capsys.readouterr()
+    assert main(["--list-plugins"]) == EXIT_OK
+    assert "your set (config file)" in capsys.readouterr().out
 
-    db = tmp_path / "run.db"
-    assert main(["-p", FTP, "-q", "--sqlite", str(db)]) == EXIT_OK
-    seen = {}
-    monkeypatch.setattr(tui_app, "run_tui", lambda registry, cfg, **kw: seen.update(kw) or 0)
-    assert main(["--attach", str(db), "--mask"]) == EXIT_OK
-    assert seen["attach"] == str(db) and seen["mask"] is True
+
+def test_user_set_errors(tmp_path, monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)
+    cfg = tmp_path / "netcreds-ng.toml"
+    for body, message in (('ftp = ["telnet"]', "same name as a plugin"),
+                          ('a = ["b"]\nb = ["a"]', "cycle"),
+                          ('x = ["nosuch"]', "unknown protocol plugin or set 'nosuch'")):  # fmt: skip
+        cfg.write_text("[sets]\n" + body + "\n", encoding="utf-8")
+        with pytest.raises(SystemExit):
+            main(["-p", FTP, "-q"])
+        assert message in capsys.readouterr().err
+
+
+def test_removed_config_keys_are_reported(tmp_path, monkeypatch, capsys):
+    (tmp_path / "netcreds-ng.toml").write_text('[output]\nmask = true\nhtml = "r.html"\n', encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    assert main(["-p", FTP]) == EXIT_OK
+    out, err = capsys.readouterr()
+    assert "[output] mask, html in the config file is no longer supported" in err
+    assert "fakeuser:FakePass-123" in out and not (tmp_path / "r.html").exists()

@@ -8,7 +8,7 @@ netcreds-ng can watch a network interface and report findings as they happen.
 
 !!! note "Beta in 2.0.0"
 
-    Live capture is a **beta** feature in 2.0.0. Protocol detection is the same code that is tested on capture files, but the live path (interface selection, BPF filters, the dashboard in live mode, dropped-packet accounting, stopping with Ctrl+C, re-reading a TLS key log while it grows) has not yet been validated on a real network. For audits, the most reliable workflow is to capture with tcpdump, dumpcap or Wireshark and analyse the file with `-p`. Please report problems you find.
+    Live capture is a **beta** feature in 2.0.0. Protocol detection is the same code that is tested on capture files, but the live path (interface selection, BPF filters, the live table, dropped-packet accounting, stopping with Ctrl+C, re-reading a TLS key log while it grows) has not yet been validated on a real network. For audits, the most reliable workflow is to capture with tcpdump, dumpcap or Wireshark and analyse the file with `-p`. Please report problems you find.
 
 ## Requirements
 
@@ -22,7 +22,7 @@ netcreds-ng can watch a network interface and report findings as they happen.
 
 ## Starting a capture
 
-Typing just `netcreds-ng` starts a live capture on the interface carrying the default route, and opens the dashboard when run in a terminal. If netcreds-ng cannot tell which interface that is, it picks the first active interface with a routable IPv4 address, preferring physical adapters over virtual switches and VPNs.
+Typing just `netcreds-ng` starts a live capture on the interface carrying the default route and prints each finding as it is seen. If netcreds-ng cannot tell which interface that is, it picks the first active interface with a routable IPv4 address, preferring physical adapters over virtual switches and VPNs.
 
 ```bash
 netcreds-ng                            # auto-detect the interface (Linux/macOS: sudo netcreds-ng)
@@ -38,16 +38,18 @@ netcreds-ng --list-interfaces          # see what is available (no privileges ne
   wlan0                          down
 ```
 
-## Dashboard or plain output
+## Output
 
-When standard output is a terminal, live capture opens the [interactive dashboard](dashboard.md). Otherwise, or with `--no-tui`, findings are printed as plain lines, and the run summary is printed when you stop with Ctrl+C:
+Findings are printed one line each as they are seen, and the run summary is printed when you stop with Ctrl+C. `--tui` shows them in a [live table](live-table.md) instead.
 
 ```bash
-sudo netcreds-ng -i eth0 --no-tui
+sudo netcreds-ng -i eth0
+sudo netcreds-ng -i eth0 -P databases,ftp                                   # only some plugins
+sudo netcreds-ng -i eth0 --tui                                             # live table
 sudo netcreds-ng -i eth0 -q --jsonl /var/log/netcreds-ng/findings.jsonl     # headless, file only
 ```
 
-Every output option works in live mode. Files are appended to as findings arrive; the HTML report and the evidence file are written when the capture stops.
+Every output option works in live mode. Files are appended to as findings arrive; the evidence file is written when the capture stops.
 
 ## Filtering traffic
 
