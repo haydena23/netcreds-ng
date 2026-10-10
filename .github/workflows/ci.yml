@@ -27,7 +27,14 @@ jobs:
       - name: Type check
         run: python -m mypy
       - name: Tests
-        run: python -m pytest -q
+        shell: bash
+        # Failing tests also become annotations, readable without access to the logs.
+        run: |
+          set -o pipefail
+          python -m pytest -q -rfE 2>&1 | tee pytest.log || {
+            grep -E "^(FAILED|ERROR) " pytest.log | head -20 | sed 's/^/::error title=pytest::/'
+            exit 1
+          }
       - name: Example plugin
         run: |
           python -m pip install ./examples/netcreds-ng-example-plugin
