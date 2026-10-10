@@ -55,17 +55,13 @@ class LineBuffer:
                 return []
             data = data[idx + 1 :]
             self._skip_partial = False
-        self._buf += data
         lines: list[bytes] = []
-        while True:
-            idx = self._buf.find(b"\n")
-            if idx < 0:
-                break
-            line = bytes(self._buf[:idx])
-            del self._buf[: idx + 1]
-            if line.endswith(b"\r"):
-                line = line[:-1]
-            lines.append(line)
+        if b"\n" not in data:  # the buffer never holds a newline, so no line ends here
+            self._buf += data
+        else:
+            parts = (bytes(self._buf) + data if self._buf else data).split(b"\n")
+            self._buf = bytearray(parts.pop())
+            lines = [p[:-1] if p.endswith(b"\r") else p for p in parts]
         if len(self._buf) > self.max_line:
             self.overflowed = True
             self._buf.clear()

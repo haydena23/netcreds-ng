@@ -25,18 +25,27 @@ Give files in chronological order (directories are read in name order, which sui
 
 ### Parallel analysis
 
-`-j N` analyses up to N files at once in worker processes:
+Large inputs are analysed by one worker process per physical CPU core by default. `-j N` sets the number of workers, and `-j 1` keeps everything in one process:
 
 ```bash
-netcreds-ng -p captures/ -j 8 --jsonl findings.jsonl
+netcreds-ng -p big-capture.pcapng          # one worker per core
+netcreds-ng -p captures/ -j 4 --jsonl findings.jsonl
+netcreds-ng -p big-capture.pcapng -j 1     # no workers
 ```
 
-Findings are published in file order, so the output is the same as a sequential run, with two differences:
+This works for a single capture as well as for many: the traffic is divided by host pair, so every connection (and every IP fragment) between two hosts is analysed by one worker. The output is the same as with `-j 1`: the same findings, in the same order, with the same counters and warnings. Rotated captures still behave like one long capture.
 
-- each file is analysed on its own, so a connection split across two files is seen as two partial connections;
-- per-packet outputs such as [`--evidence`](../reference/outputs.md#evidence-pcapng) need every packet in one process, so they make the run sequential and `-j` is ignored.
+Speed-up depends on the traffic. On the synthetic benchmark, 8 workers on an 8-core machine analyse about 4 times as many frames per second as one. The work cannot be divided more finely than one host pair, so a capture dominated by a single conversation gains little.
 
-Dedup, enrichers and outputs always run in the main process, so alerts and analytics see every finding from every file.
+`-j` is ignored, and the run is sequential, when:
+
+- the input is smaller than 16 MB (starting the workers would cost more than it saves);
+- a per-packet output such as [`--evidence`](../reference/outputs.md#evidence-pcapng) is active, since it needs every packet in one process;
+- capturing live.
+
+Some limits apply per worker rather than per run: the flow table cap (100,000 flows by default) and the IP fragment buffers. Fragment expiry follows the fragments each worker sees, so in a capture whose timestamps go backwards, a fragmented datagram that a single process would give up on can still be reassembled. A third-party plugin that correlates traffic between *different* host pairs only sees the share of its worker; no built-in plugin does that.
+
+Dedup, enrichers and outputs always run in the main process, so alerts and analytics see every finding.
 
 ## Ignoring hosts
 
@@ -98,7 +107,7 @@ The status is `good`, `degraded` or `poor`. Informational notes keep the status 
 | dropped packets | live capture only: packets lost because analysis fell behind | any / 5% | capture to a file and analyse it with `-p` |
 | no handshake | flows picked up mid-stream | information only, at 50% | normal for short captures; logins made before the capture started are not visible |
 
-Rates are judged only on enough evidence: at least 20 TCP flows, 100 data segments or 100 frames, depending on the measure. In a smaller capture, one-sided flows are still reported (as a warning) when most of the flows are one-sided. Connection attempts that were never answered (a bare SYN) are not counted as one-sided, because the network, not the capture, is the cause. Neither are stray packets without data, such as a late ACK after a reset. With `-j`, a connection split across two files is seen as two partial connections, which can raise the one-sided and no-handshake counts.
+Rates are judged only on enough evidence: at least 20 TCP flows, 100 data segments or 100 frames, depending on the measure. In a smaller capture, one-sided flows are still reported (as a warning) when most of the flows are one-sided. Connection attempts that were never answered (a bare SYN) are not counted as one-sided, because the network, not the capture, is the cause. Neither are stray packets without data, such as a late ACK after a reset.
 
 The same assessment, with every counter and rate, is written by [`--summary-json`](../reference/outputs.md#run-summary-json).
 

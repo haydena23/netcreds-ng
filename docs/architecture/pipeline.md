@@ -53,26 +53,29 @@ Then `open()`, `run_files(paths)` or `feed(frames)`, and `close()`, which flushe
 
 ## Parallel analysis
 
-With `jobs > 1` and several files, `Session.run_files()` uses a `ProcessPoolExecutor`:
+With `jobs > 1`, `Session.run_files()` hands the files to `netcreds_ng.parallel.run_parallel()`, which splits one stream of frames (every file, in order) across worker processes:
 
 ```mermaid
 flowchart LR
+    F[capture files<br/>read in order] --> W1 & W2 & W3
     subgraph Workers
-        W1[worker: file 1<br/>engine + protocol plugins] 
-        W2[worker: file 2]
-        W3[worker: file N]
+        W1[worker 0<br/>engine + protocol plugins]
+        W2[worker 1]
+        W3[worker N-1]
     end
-    W1 -->|findings, stats, errors| M
+    W1 -->|tagged findings, errors<br/>in batches| M
     W2 --> M
     W3 --> M
-    M[main process<br/>in file order] --> P[dedup → enrichers → sinks → listeners]
+    M[main process<br/>merge by tag] --> P[dedup → enrichers → sinks → listeners]
 ```
 
-- Each worker loads the registry itself (including `plugin_dirs`), runs the engine and protocol plugins on one file with dedup off, and returns its findings, `RunStats` and error messages.
-- The main process merges the engine counters (`RunStats.merge()`) and publishes the findings **in file order** through its own pipeline, so dedup, analytics, alerts and outputs behave as in a sequential run.
-- Sequential mode is used instead when there is only one file, when a stop callback is given (the live table), or when a sink needs packets (`--evidence`).
+- **Ownership.** Every worker reads every frame. `route()` assigns a frame to a worker by a hash of its unordered pair of IP addresses, so both directions of a connection, every connection between two hosts and every IP fragment of a datagram go to one worker. Frames without a readable IP header go to worker 0.
+- **Same clock.** A worker analyses the frames it owns (`Engine.process_frame`) and only advances its clock for the others (`Engine.skip_frame`). The engine sweeps idle flows every `SWEEP_EVERY` frames *read*, so every worker sweeps at the same frames, with the same time, as a single engine would.
+- **Tags.** Workers run the protocol plugins with dedup off (cross-plugin merging still follows the session's dedup mode). Each finding and plugin error is tagged with `Engine.emit_order`: the frame position, a phase (analysing the frame, the idle sweep after it, or the end of the run) and, while flows are closed, the position of the flow's last packet, which is the flow table's order. Worker 0 also tags the start of each file, for sinks with `on_source`.
+- **Merge.** Workers send tagged events in batches with a watermark (every event up to that position has been sent). The main process publishes, in tag order, every event below the lowest watermark, so the findings reach dedup, enrichers and outputs in exactly the sequential order while the workers are still running. At the end it merges the engine counters (`RunStats.merge()`).
+- **When.** `Session.parallel_workers()` decides: `jobs`, at most one per CPU, and sequential mode for inputs under `parallel.PARALLEL_MIN_BYTES` (16 MB), with a stop callback (the live table), or when a sink needs packets (`--evidence`).
 
-A connection split across two files is seen as two partial connections in parallel mode, while sequential mode carries flows across files.
+Workers load the registry themselves (including `plugin_dirs`) and instantiate the parent's protocol plugins by name with the same options. The flow-table cap applies per worker.
 
 ## The console renderer
 

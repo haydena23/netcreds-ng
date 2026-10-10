@@ -26,6 +26,16 @@ def _field_re(names: set[str]) -> re.Pattern[bytes]:
 
 _USER = _field_re(USER_FIELDS)
 _PASS = _field_re(PASS_FIELDS)
+#: Every PASS_FIELDS name contains one of these (tests/test_fast_paths.py), so a line without any cannot match _PASS.
+_PASS_HINTS = (b"pass", b"pw", b"secret", b"senha", b"contrasena")
+
+
+def _candidate(data: bytes) -> bool:
+    """False if _PASS cannot match in ``data``: no "=", or no password field name (any case)."""
+    if b"=" not in data:
+        return False
+    low = data.lower()  # ASCII-only, like re.IGNORECASE on bytes
+    return any(hint in low for hint in _PASS_HINTS)
 
 
 @dataclass
@@ -70,6 +80,8 @@ class KeyValuePlugin(ProtocolPlugin):
                 self._scan(ctx, Direction(d), tail)
 
     def _scan(self, ctx: Context, direction: Direction, line: bytes) -> None:
+        if not _candidate(line):
+            return  # the regex alone is several times slower on binary streams
         pw = next((m for m in _PASS.finditer(line) if not placeholder(m.group(2))), None)
         if pw is None:
             return  # no password field, or only template/masked values (``pass=%s``, ``password=****``)

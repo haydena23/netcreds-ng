@@ -39,7 +39,10 @@ class FTPPlugin(ProtocolPlugin):
 
     def on_data(self, ctx: Context, direction: Direction, data: bytes) -> None:
         st: _State = ctx.state
-        for line in st.lines[direction].feed(data):
+        lines = st.lines[direction].feed(data)
+        if direction is Direction.SERVER_TO_CLIENT and st.greeting_seen and not st.awaiting_result:
+            return  # _server_line only reads the greeting and login replies: nothing to do (bulk transfers)
+        for line in lines:
             if ctx.detached:
                 return
             if direction is Direction.SERVER_TO_CLIENT:

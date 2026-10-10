@@ -68,7 +68,7 @@ A flow ends, and plugins get `on_close`, when:
 
 - both sides sent FIN, or either sent RST;
 - a new SYN arrives on the same four-tuple with a different initial sequence number, or after the old connection closed (port reuse);
-- it has been idle for 10 minutes (TCP) or 2 minutes (UDP), checked every 2,048 frames;
+- it has been idle for 10 minutes (TCP) or 2 minutes (UDP), checked every 2,048 frames read (decodable or not, so parallel workers sweep at the same frames);
 - the table holds 100,000 flows and a new one arrives: the least recently active flow is closed (`evicted_flows`);
 - the input ends (`Engine.finish()`).
 
@@ -127,6 +127,8 @@ Other plugins on the same flow, and the same plugin on other flows, carry on. Me
 
 ## Performance notes
 
-- Plugins detach early from traffic that is not theirs, so most flows end up with only a few active contexts.
-- Hot paths have fast paths: Telnet option stripping copies runs of plain bytes in one step; the secrets scanner looks for cheap anchors before running full patterns.
+- Plugins detach early from traffic that is not theirs, so most flows end up with only a few active contexts. Each flow keeps a list of its attached slots, pruned as plugins detach, so delivery skips detached plugins without looking at them.
+- Hot paths have fast paths that give exactly the result of the full check (`tests/test_fast_paths.py`): Telnet option stripping copies runs of plain bytes in one step; the secrets scanner looks for cheap anchors before running full patterns; `keyvalue` runs its password regex only on lines containing `=` and a password field name; `telnet` searches for prompts only when the server output ends in `:`; the HTTP response parser searches only bytes it has not searched yet.
+- A closed flow's objects are freed by reference counting at once: the engine breaks the slot ↔ emit-callback and twin-slot reference cycles in `_close`. While frames are processed, the young-generation garbage collection threshold is raised (`relaxed_gc`) and restored afterwards; the collector stays on.
+- `-j N` divides the work by host pair across worker processes; see [parallel analysis](pipeline.md#parallel-analysis).
 - `tools/bench.py --flows N` generates a capture and measures throughput, optionally under a profiler. See [Development](../development/index.md#benchmarks).

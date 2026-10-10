@@ -49,7 +49,8 @@ The [`Session`](../api/session.md) class wires all of this together from a confi
 | --- | --- |
 | `netcreds_ng.cli` | argument parsing, configuration merging, mode selection |
 | `netcreds_ng.config` | TOML configuration discovery and `--option` parsing |
-| `netcreds_ng.session` | builds the engine, pipeline, plugins and sinks; parallel file analysis |
+| `netcreds_ng.session` | builds the engine, pipeline, plugins and sinks |
+| `netcreds_ng.parallel` | `-j N`: frames split across worker processes by host pair, merged back into sequential order |
 | `netcreds_ng.model` | `Finding`, `Endpoint`, `Kind`, `RunStats` |
 | `netcreds_ng.engine.pcapio` | pcap/pcapng reader and writers |
 | `netcreds_ng.engine.sources` | directory expansion, interface discovery, live capture |

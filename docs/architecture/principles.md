@@ -32,7 +32,7 @@ Every problem is counted and shown: undecodable and truncated frames, gaps, retr
 
 ## Deterministic
 
-The same input gives the same findings in the same order: plugins and enrichers run in `(priority, name)` order, directories are read in name order, parallel results are published in file order, and timestamps come from the capture, not the clock. The only intended difference between two runs is `secret_fingerprint`.
+The same input gives the same findings in the same order: plugins and enrichers run in `(priority, name)` order, directories are read in name order, parallel workers' results are merged back into the order of a single process, and timestamps come from the capture, not the clock. The only intended difference between two runs is `secret_fingerprint`.
 
 ## Detect by content
 

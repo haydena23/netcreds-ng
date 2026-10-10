@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import gc
 import itertools
 import logging
 from collections import OrderedDict
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Iterable, Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -33,6 +35,9 @@ from netcreds_ng.engine.tls import TLSDecryptor, TLSSession, could_start_client_
 from netcreds_ng.model import Endpoint, Finding, RunStats
 from netcreds_ng.plugins.api import Context, Direction, FlowInfo, ProtocolPlugin, Transport
 
+_C2S, _S2C = Direction.CLIENT_TO_SERVER, Direction.SERVER_TO_CLIENT
+_OTHER = (_S2C, _C2S)
+
 log = logging.getLogger(__name__)
 
 IDLE_TIMEOUT = 600.0
@@ -49,7 +54,7 @@ DUP_WINDOW_NO_ID = 0.0002
 DUP_HISTORY = 4
 
 
-@dataclass(eq=False)
+@dataclass(eq=False, slots=True)
 class _Slot:
     """One plugin attached to one flow, in one orientation.
 
@@ -69,10 +74,11 @@ class _Slot:
     decrypted: bool = False  # the data this slot saw last was decrypted TLS
 
 
-@dataclass
+@dataclass(slots=True)
 class _Flow:
     info: FlowInfo
-    contexts: list[_Slot]
+    contexts: list[_Slot]  # every slot, in plugin order (on_close, error reporting)
+    active: list[_Slot]  # the slots not known to be detached, pruned during delivery
     streams: tuple[TCPStream, TCPStream] | None
     last_ts: float
     closing: bool = False
@@ -90,6 +96,27 @@ class _Flow:
     data: list[bool] = field(default_factory=lambda: [False, False])  # a direction carried payload
     handshake: bool = False
     recent: tuple[list[tuple[Any, ...]], list[tuple[Any, ...]]] = field(default_factory=lambda: ([], []))
+    touched: int = 0  # engine position of the flow's last packet: the flow table's order (emit_order)
+
+
+#: Allocations between young-generation garbage collections while analysing (Python's default: 2000).
+GC_GEN0_THRESHOLD = 50_000
+
+
+@contextmanager
+def relaxed_gc() -> Iterator[None]:
+    """Collect the young generation less often while frames are processed.
+
+    Every flow allocates a few hundred short-lived containers (plugin states, buffers). They are
+    freed by reference counting, but at the default threshold the allocations alone trigger
+    thousands of collections that find nothing, about 8% of the run time. The collector stays on.
+    """
+    old = gc.get_threshold()
+    gc.set_threshold(max(old[0], GC_GEN0_THRESHOLD), *old[1:])
+    try:
+        yield
+    finally:
+        gc.set_threshold(*old)
 
 
 def _canonical(src: str, sport: int, dst: str, dport: int) -> tuple[Any, ...]:
@@ -125,11 +152,17 @@ class Engine:
         self._ids = itertools.count(1)
         self._since_sweep = 0
         self._now = 0.0
+        self.position = 0  # frames read so far (analysed or skipped), across files
+        self._phase = self._phase_flow = 0  # see emit_order
         #: Called with every decoded TCP/UDP packet before plugins see it (e.g. evidence capture).
         self.packet_observers: list[Callable[[Packet], None]] = []
         self.server_ports: set[int] = set()
         for p in self.plugins:
             self.server_ports |= set(p.default_ports)
+        self._candidates = {t: [p for p in self.plugins if t in p.transports] for t in Transport}
+        #: Plugins with an on_close of their own; the base class's does nothing and is not called.
+        self._closers = {id(p) for p in self.plugins
+                         if type(p).on_close is not ProtocolPlugin.on_close or "on_close" in vars(p)}  # fmt: skip
         #: Secrets already reported per flow id, with the reporting plugin and user name (E-10).
         #: Disabled with ``--dedup off``, which asks for every report.
         self._flow_secrets: dict[int, dict[str, list[tuple[str, str | None]]]] = {}
@@ -138,9 +171,38 @@ class Engine:
     # public ----------------------------------------------------------------
 
     def process_frame(self, frame: RawFrame) -> None:
+        self.position += 1
+        self._now = frame.timestamp
+        self._analyse(frame)
+        # Idle flows are swept every SWEEP_EVERY frames read, decodable or not, so a parallel worker
+        # (skip_frame) sweeps at exactly the same points as a single engine reading every frame.
+        self._since_sweep += 1
+        if self._since_sweep >= SWEEP_EVERY:
+            self._since_sweep = 0
+            self._sweep()
+
+    def skip_frame(self, timestamp: float) -> None:
+        """Account for a frame another parallel worker analyses: keep the clock and the sweep schedule."""
+        self.position += 1
+        self._now = timestamp
+        self._since_sweep += 1
+        if self._since_sweep >= SWEEP_EVERY:
+            self._since_sweep = 0
+            self._sweep()
+
+    @property
+    def emit_order(self) -> tuple[int, int, int]:
+        """Where a finding published now falls in a single engine's output order.
+
+        (frame position, phase, flow position): phase 0 while a frame is analysed, 1 while the idle
+        sweep after it closes flows, 2 at :meth:`finish`; flows close in order of their last packet.
+        Parallel workers tag what they publish with it so the parent can merge (netcreds_ng.parallel).
+        """
+        return self.position, self._phase, self._phase_flow
+
+    def _analyse(self, frame: RawFrame) -> None:
         st = self.stats
         st.frames += 1
-        self._now = frame.timestamp
         # Earliest and latest, not first and last seen: merged or out-of-order captures (and the -j merge).
         if st.first_ts is None or frame.timestamp < st.first_ts:
             st.first_ts = frame.timestamp
@@ -185,22 +247,24 @@ class Engine:
             self._tcp(pkt)
         elif pkt.proto == PROTO_UDP and pkt.l4_header_len:
             self._udp(pkt)
-        self._since_sweep += 1
-        if self._since_sweep >= SWEEP_EVERY:
-            self._since_sweep = 0
-            self._sweep()
 
     def process(self, frames: Iterable[RawFrame]) -> None:
-        for frame in frames:
-            self.process_frame(frame)
+        with relaxed_gc():
+            for frame in frames:
+                self.process_frame(frame)
 
     def finish(self) -> None:
-        for key in list(self._flows):
+        self._phase = 2
+        for key, flow in list(self._flows.items()):
+            self._phase_flow = flow.touched
             self._close(key)
         # Fragments that never completed a datagram are reported, not silently dropped.
         self._defrag.expire_all()
-        self.stats.ip_fragments_expired = self._defrag.expired
-        self.stats.ip_fragment_duplicates = self._defrag.duplicates
+        # Added, not assigned: the counters may already hold parallel workers' totals (RunStats.merge).
+        self.stats.ip_fragments_expired += self._defrag.expired
+        self.stats.ip_fragment_duplicates += self._defrag.duplicates
+        self._defrag.expired = self._defrag.duplicates = 0
+        self._phase = self._phase_flow = 0
 
     @property
     def active_flows(self) -> int:
@@ -222,9 +286,7 @@ class Engine:
         if dual:
             self.stats.ambiguous_flows += 1
         contexts: list[_Slot] = []
-        for plugin in self.plugins:
-            if transport not in plugin.transports:
-                continue
+        for plugin in self._candidates[transport]:
             if plugin.ports_only and server.port not in plugin.default_ports and client.port not in plugin.default_ports:
                 continue
             slot = self._slot(plugin, info, swapped=False)
@@ -238,7 +300,7 @@ class Engine:
                     slot.twin, twin.twin = twin, slot
                     contexts.append(twin)
         streams = (TCPStream(), TCPStream()) if transport is Transport.TCP else None
-        flow = _Flow(info, contexts, streams, pkt.timestamp, certain=certain)
+        flow = _Flow(info, contexts, list(contexts), streams, pkt.timestamp, certain=certain)
         self._flows[key] = flow
         if transport is Transport.TCP:
             self.stats.tcp_flows += 1
@@ -301,9 +363,7 @@ class Engine:
 
     def _direction(self, flow: _Flow, pkt: Packet) -> Direction:
         c = flow.info.client
-        if pkt.src == c.ip and pkt.sport == c.port:
-            return Direction.CLIENT_TO_SERVER
-        return Direction.SERVER_TO_CLIENT
+        return _C2S if pkt.sport == c.port and pkt.ip.src == c.ip else _S2C
 
     def _tcp(self, pkt: Packet) -> None:
         key = (PROTO_TCP, *_canonical(pkt.src, pkt.sport, pkt.dst, pkt.dport))
@@ -318,29 +378,38 @@ class Engine:
             flow = self._new_flow(key, pkt, Transport.TCP)
         else:
             self._flows.move_to_end(key)
-        flow.last_ts = pkt.timestamp
+        ts = pkt.frame.timestamp
+        flow.last_ts, flow.touched = ts, self.position
         direction = self._direction(flow, pkt)
         self._health(flow, direction, pkt)
-        assert flow.streams is not None
-        stream = flow.streams[direction]
-        other = flow.streams[direction.other]
-        if pkt.payload and other.warming:
-            # Keep request/response order: data now flowing this way ends the other side's warm-up.
-            self._flush_stream(flow, direction.other, other.release, pkt)
-        if pkt.payload and pkt.flags & TCP_ACK and other.pending:
-            # Only a reply carrying data forces the skip (it must be delivered after the request).
-            # A pure ACK may be captured ahead of the segment it acknowledges (merged taps, skew),
-            # so it never declares a hole lost: the late segment can still fill it.
-            self._flush_stream(flow, direction.other, lambda: other.acknowledged(pkt.ack), pkt)
-        syn, fin = bool(pkt.flags & TCP_SYN), bool(pkt.flags & TCP_FIN)
-        origin = (pkt.index, pkt.timestamp)
-        self._flush_stream(flow, direction, lambda: stream.add(pkt.seq, pkt.payload, syn=syn, fin=fin, origin=origin),
-                           pkt)  # fmt: skip
-        if pkt.flags & TCP_RST:
+        streams = flow.streams
+        assert streams is not None
+        stream = streams[direction]
+        payload, flags = pkt.payload, pkt.flags
+        if payload:
+            odir = _OTHER[direction]
+            other = streams[odir]
+            if other.warm:
+                # Keep request/response order: data now flowing this way ends the other side's warm-up.
+                self._flush_stream(flow, odir, other.release, pkt)
+            if flags & TCP_ACK and other.pending:
+                # Only a reply carrying data forces the skip (it must be delivered after the request).
+                # A pure ACK may be captured ahead of the segment it acknowledges (merged taps, skew),
+                # so it never declares a hole lost: the late segment can still fill it.
+                self._flush_stream(flow, odir, lambda: other.acknowledged(pkt.ack), pkt)
+        # _flush_stream inlined for the common case: one segment into the stream.
+        retx, gaps, gap_bytes = stream.retransmitted, stream.gaps, stream.gap_bytes
+        chunks = stream.add(pkt.seq, payload, syn=bool(flags & TCP_SYN), fin=bool(flags & TCP_FIN),
+                            origin=(pkt.frame.index, ts))  # fmt: skip
+        if stream.retransmitted != retx or stream.gaps != gaps or stream.gap_bytes != gap_bytes:
+            self._account(stream, retx, gaps, gap_bytes)
+        if chunks:
+            self._deliver(flow, direction, chunks, pkt)
+        if flags & TCP_RST:
             flow.rst = True
             self._close(key)
             return
-        if pkt.flags & TCP_FIN:
+        if flags & TCP_FIN:
             flow.pending_close.add(int(direction))
             if len(flow.pending_close) == 2:
                 flow.closing = True
@@ -414,17 +483,25 @@ class Engine:
             flow = self._new_flow(key, pkt, Transport.UDP)
         else:
             self._flows.move_to_end(key)
-        flow.last_ts = pkt.timestamp
+        flow.last_ts, flow.touched = pkt.timestamp, self.position
         direction = self._direction(flow, pkt)
-        for slot in flow.contexts:
+        odir = _OTHER[direction]
+        ts, index, payload = pkt.frame.timestamp, pkt.frame.index, pkt.payload
+        active = flow.active
+        pruned = False
+        for slot in active:
             ctx = slot.ctx
-            if ctx.detached:
+            if ctx._detached:
+                pruned = True
                 continue
-            ctx.timestamp, ctx.frame = pkt.timestamp, pkt.index
+            ctx.timestamp, ctx.frame = ts, index
             try:
-                slot.plugin.on_datagram(ctx, direction.other if slot.swapped else direction, pkt.payload)
+                slot.plugin.on_datagram(ctx, odir if slot.swapped else direction, payload)
             except Exception as exc:  # noqa: BLE001
                 self._slot_error(slot, exc)
+            pruned = pruned or ctx._detached
+        if pruned:
+            flow.active = [s for s in active if not s.ctx._detached]
 
     def _tls_filter(self, flow: _Flow, direction: Direction, chunks: list[Chunk]) -> list[Chunk]:
         """Replace TLS record bytes by the decrypted application data (or nothing without keys).
@@ -476,28 +553,36 @@ class Engine:
             self._decrypted_context = False
 
     def _deliver_to_plugins(self, flow: _Flow, direction: Direction, chunks: list[Chunk], pkt: Packet | None) -> None:
-        for slot in flow.contexts:
-            ctx, plugin = slot.ctx, slot.plugin
-            if ctx.detached:
+        odir = _OTHER[direction]
+        active = flow.active
+        pruned = False
+        for slot in active:
+            ctx = slot.ctx
+            if ctx._detached:  # the attribute, not the property: this is the engine's hottest loop
+                pruned = True
                 continue
-            d = direction.other if slot.swapped else direction
+            plugin = slot.plugin
+            d = odir if slot.swapped else direction
             try:
                 for chunk in chunks:
                     # Cite the packet that carried these bytes, not the one that released them (review M4).
                     if chunk.frame:
                         ctx.timestamp, ctx.frame = chunk.timestamp, chunk.frame
                     elif pkt is not None:
-                        ctx.timestamp, ctx.frame = pkt.timestamp, pkt.index
+                        ctx.timestamp, ctx.frame = pkt.frame.timestamp, pkt.frame.index
                     self._decrypted_context = slot.decrypted = chunk.decrypted
                     if chunk.gap_before:
                         plugin.on_gap(ctx, d, chunk.gap_before)
-                    if ctx.detached:
-                        break
+                        if ctx._detached:
+                            break
                     plugin.on_data(ctx, d, chunk.data)
-                    if ctx.detached:
+                    if ctx._detached:
                         break
             except Exception as exc:  # noqa: BLE001
                 self._slot_error(slot, exc)
+            pruned = pruned or ctx._detached
+        if pruned:
+            flow.active = [s for s in active if not s.ctx._detached]
 
     def _slot_error(self, slot: _Slot, exc: BaseException) -> None:
         slot.ctx.detach()
@@ -527,8 +612,11 @@ class Engine:
                     flow.tls_probe[direction] = b""
                     self._deliver_to_plugins(flow, direction, [Chunk(probe)], None)
         try:
+            closers = self._closers
             for slot in flow.contexts:
                 if slot.lost:  # checked per slot: an earlier on_close may have just resolved the orientation
+                    continue
+                if id(slot.plugin) not in closers:
                     continue
                 # Tag on_close findings only if this slot's last data was decrypted (review L3).
                 self._decrypted_context = slot.decrypted
@@ -543,14 +631,22 @@ class Engine:
             if slot.suppressed is not None and not (slot.twin is not None and slot.twin.won):
                 # Neither orientation won: the swallowed error may have hidden real findings.
                 self._plugin_error(slot.plugin, slot.ctx.flow, slot.suppressed)
+        for slot in flow.contexts:
+            # Break the slot <-> emit closure and twin reference cycles: the flow's objects are then
+            # freed by reference counting now, instead of piling up for the cyclic garbage collector.
+            slot.sibling = slot.twin = None
+            slot.ctx._emit = self._emit
         if flow.tls is not None:
             self._tls_stats(flow.tls)
 
     def _sweep(self) -> None:
+        self._phase = 1
         for key, flow in list(self._flows.items()):
             timeout = self.idle_timeout if flow.streams is not None else UDP_IDLE_TIMEOUT
             if flow.closing or self._now - flow.last_ts > timeout:
+                self._phase_flow = flow.touched
                 self._close(key)
+        self._phase = self._phase_flow = 0
 
     # plumbing --------------------------------------------------------------
 

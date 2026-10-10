@@ -99,7 +99,7 @@ Reproduce the original net-creds output (stdout and `./credentials.txt`) exactly
 
 ### `-j`, `--jobs N`
 
-Analyse up to N capture files in parallel worker processes. Default 1. Output is published in file order. Ignored when only one file is given, for live capture, and when `--evidence` (or another per-packet output) is active. Connections do not continue across files in parallel mode. See [parallel analysis](../guide/analysing-captures.md#parallel-analysis).
+Analyse with N worker processes; `0` (the default) means one per physical CPU core, `1` analyses in the main process. The traffic of one or more capture files is divided by host pair, and the output is the same as with `-j 1`. Ignored for inputs under 16 MB, for live capture, and when `--evidence` (or another per-packet output) is active. See [parallel analysis](../guide/analysing-captures.md#parallel-analysis).
 
 ### `--tls-keylog FILE`
 

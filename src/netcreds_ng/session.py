@@ -8,7 +8,7 @@ from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
 from typing import Any
 
-from netcreds_ng.engine.engine import Engine
+from netcreds_ng.engine.engine import Engine, relaxed_gc
 from netcreds_ng.engine.pcapio import CaptureFormatError, RawFrame
 from netcreds_ng.engine.pipeline import Deduplicator, Pipeline
 from netcreds_ng.engine.sources import file_frames
@@ -34,41 +34,13 @@ class SessionConfig:
     exclude_hosts: set[str] = field(default_factory=set)
     source_label: str = ""
     tls_keylog: str | None = None  # NSS key-log file: decrypt TLS sessions it has secrets for
-    jobs: int = 1  # worker processes for multiple capture files
+    jobs: int = 1  # worker processes (netcreds_ng.parallel); 1: analyse in this process
     plugin_dirs: list[str] = field(default_factory=list)  # so workers load the same plugins
 
 
 def _protocols(registry: Registry, config: SessionConfig) -> list[Any]:
     return registry.select_protocols(config.enable, config.disable, config.plugin_options, only=config.plugins,
                                      user_sets=config.sets)  # fmt: skip
-
-
-def _worker(path: str, config: SessionConfig) -> tuple[list[Finding], RunStats, list[str]]:
-    """Analyse one capture in a worker process: decoding and protocol plugins only.
-
-    Dedup, enrichers and sinks run in the parent, which publishes the findings in file order.
-    """
-    from netcreds_ng.plugins.registry import load_registry
-
-    registry = load_registry(plugin_dirs=config.plugin_dirs)
-    stats = RunStats()
-    found: list[Finding] = []
-    pipeline = Pipeline(stats, dedup=Deduplicator("off"), listeners=[found.append])
-    tls = None
-    if config.tls_keylog:
-        from netcreds_ng.engine.tls import KeyLog, TLSDecryptor
-
-        tls = TLSDecryptor(KeyLog(config.tls_keylog))
-    engine = Engine(_protocols(registry, config), pipeline, stats,
-                    exclude_hosts=config.exclude_hosts, tls=tls)  # fmt: skip
-    try:
-        engine.process(file_frames(path))
-    except CaptureFormatError as exc:
-        stats.source_errors.append(f"{path}: {exc}")
-    except OSError as exc:
-        stats.source_errors.append(f"{path}: {exc.strerror or exc}")
-    engine.finish()
-    return found, stats, pipeline.errors
 
 
 def combine_summary(analytics: AnalyticsEnricher | None, detection: DetectionEnricher | None) -> dict[str, Any]:
@@ -135,16 +107,22 @@ class Session:
         self.pipeline.open()
 
     def feed(self, frames: Iterable[RawFrame], stop: Callable[[], bool] | None = None) -> None:
-        for frame in frames:
-            self.engine.process_frame(frame)
-            if stop is not None and stop():
-                break
+        process = self.engine.process_frame
+        with relaxed_gc():
+            for frame in frames:
+                process(frame)
+                if stop is not None and stop():
+                    break
 
-    def run_file(self, path: str, stop: Callable[[], bool] | None = None) -> None:
+    def notify_source(self, path: str) -> None:
+        """Tell sinks that want to know (``on_source``) that the next findings come from ``path``."""
         for sink in self.sinks:
             notify = getattr(sink, "on_source", None)
             if callable(notify):
                 notify(path)
+
+    def run_file(self, path: str, stop: Callable[[], bool] | None = None) -> None:
+        self.notify_source(path)
         try:
             self.feed(file_frames(path), stop)
         except CaptureFormatError as exc:
@@ -153,30 +131,36 @@ class Session:
             self.stats.source_errors.append(f"{path}: {exc.strerror or exc}")
 
     def run_files(self, paths: list[str], stop: Callable[[], bool] | None = None) -> None:
-        """Analyse capture files in order; with ``jobs > 1`` several files are analysed in parallel.
+        """Analyse capture files in order, as one stream: a flow may continue into the next file
+        (rotated captures, e.g. ``tcpdump -C``).
 
-        Sequential mode lets a flow continue into the next file (rotated captures, e.g.
-        ``tcpdump -C``). Parallel mode analyses each file on its own, so a flow split across
-        files is seen as two partial flows; it is skipped when per-packet sinks (``--evidence``)
-        are active. Findings are published in file order either way.
+        With ``jobs > 1`` the frames are split across worker processes (:mod:`netcreds_ng.parallel`)
+        and the output is the same as with one. See :meth:`parallel_workers` for when that happens.
         """
-        jobs = min(self.config.jobs, len(paths))
-        if jobs <= 1 or stop is not None or self.engine.packet_observers:
-            for path in paths:
-                self.run_file(path, stop)
-            return
-        from concurrent.futures import ProcessPoolExecutor
+        workers = self.parallel_workers(paths) if stop is None else 1
+        if workers > 1:
+            from netcreds_ng.parallel import run_parallel
 
-        with ProcessPoolExecutor(max_workers=jobs) as pool:
-            futures = [pool.submit(_worker, path, self.config) for path in paths]
-            for future in futures:
-                found, stats, errors = future.result()
-                self.stats.merge(stats)
-                for err in errors:
-                    if len(self.pipeline.errors) < 100:
-                        self.pipeline.errors.append(err)
-                for finding in found:
-                    self.pipeline.publish(finding)
+            run_parallel(self, paths, workers)
+            return
+        for path in paths:
+            self.run_file(path, stop)
+
+    def parallel_workers(self, paths: list[str]) -> int:
+        """Worker processes for ``paths``: ``jobs``, at most one per CPU; 1 (no workers) for inputs too
+        small to gain from them and when a per-packet sink (``--evidence``) must see every packet in order."""
+        from netcreds_ng import parallel
+
+        workers = min(self.config.jobs, os.cpu_count() or 1)
+        if workers <= 1 or self.engine.packet_observers:
+            return 1
+        size = 0
+        for path in paths:
+            try:
+                size += os.path.getsize(path)
+            except OSError:
+                pass  # reported when the file is read
+        return workers if size >= parallel.PARALLEL_MIN_BYTES else 1
 
     def close(self) -> None:
         self.engine.finish()

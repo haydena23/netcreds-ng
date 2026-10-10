@@ -78,6 +78,8 @@ class _Parser:
     chunk_state: str = "size"
     #: response parser only: methods of requests still awaiting a final response (HEAD has no body)
     methods: deque[str] = field(default_factory=lambda: deque(maxlen=64))
+    #: response parser only: no "HTTP/1." starts before this offset of ``buf`` (it was only appended to since)
+    searched: int = 0
 
     def feed(self, data: bytes) -> list[tuple[Any, bytes]]:
         if self.dead:
@@ -105,6 +107,7 @@ class _Parser:
 
     def resync(self) -> None:
         self.buf.clear()
+        self.searched = 0
         self.head, self.body, self.chunked, self.remaining = None, bytearray(), False, 0
         self.chunk_state = "size"
 
@@ -118,12 +121,16 @@ class _Parser:
             if m.start(1) > 0:
                 del self.buf[: m.start(1)]
         elif not self.buf.startswith(b"HTTP/"):
-            idx = self.buf.find(b"HTTP/1.")
+            idx = self.buf.find(b"HTTP/1.", self.searched)
             if idx < 0:
                 if len(self.buf) > MAX_HEADER:
                     self.buf.clear()
+                    self.searched = 0
+                else:  # nothing before here can start a match: only appended bytes are searched next time
+                    self.searched = max(0, len(self.buf) - 6)
                 return False
             del self.buf[:idx]
+        self.searched = 0  # the buffer may now change other than by appending
         end = self.buf.find(b"\r\n\r\n")
         sep = 4
         if end < 0:

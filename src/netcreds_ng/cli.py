@@ -79,8 +79,8 @@ def build_parser() -> argparse.ArgumentParser:
                      help="reproduce the original net-creds output (stdout + ./credentials.txt) exactly")  # fmt: skip
 
     an = p.add_argument_group("analysis")
-    an.add_argument("-j", "--jobs", type=int, default=1, metavar="N",
-                    help="analyse up to N capture files in parallel (default 1)")  # fmt: skip
+    an.add_argument("-j", "--jobs", type=int, default=0, metavar="N",
+                    help="analyse with N worker processes, same output (default 0: one per CPU core; 1: no workers)")  # fmt: skip
     an.add_argument("--tls-keylog", metavar="FILE",
                     help="decrypt TLS sessions found in this NSS key-log file (SSLKEYLOGFILE); needs netcreds-ng[tls]")  # fmt: skip
     an.add_argument("--dedup", choices=("off", "run", "persistent"), default=None, help="duplicate suppression")
@@ -253,7 +253,7 @@ def _dispatch(parser: argparse.ArgumentParser, args: argparse.Namespace) -> int:
         exclude_hosts=set(hosts),
         source_label=", ".join(args.pcap) if args.pcap else (args.interface or "live"),
         tls_keylog=args.tls_keylog or out_cfg.get("tls_keylog") or plugin_cfg.get("tls_keylog"),
-        jobs=max(1, args.jobs),
+        jobs=_jobs(args.jobs),
         plugin_dirs=args.plugin_dir + list(plugin_cfg.get("dirs", [])),
     )
     if args.pcap:
@@ -315,6 +315,14 @@ def _list_interfaces() -> int:
     return EXIT_OK
 
 
+def _jobs(requested: int) -> int:
+    if requested == 0:
+        from netcreds_ng.parallel import default_workers
+
+        return default_workers()
+    return max(1, requested)
+
+
 def _run_files(args: argparse.Namespace, registry: Any, scfg: Any) -> int:
     from netcreds_ng.engine.sources import expand_capture_paths
     from netcreds_ng.output.console import ConsoleRenderer
@@ -347,7 +355,12 @@ def _run_files(args: argparse.Namespace, registry: Any, scfg: Any) -> int:
     except (OSError, ValueError, RuntimeError) as exc:
         print(f"[ERROR] {exc}", file=sys.stderr)
         return EXIT_ERROR
-    session.run_files(paths)
+    try:
+        session.run_files(paths)
+    except RuntimeError as exc:  # a parallel worker failed (netcreds_ng.parallel)
+        print(f"[ERROR] {exc}", file=sys.stderr)
+        session.close()  # flush and close outputs: what was published before the failure is kept
+        return EXIT_ERROR
     session.close()
     renderer.summary(session.stats, session.summary(), session.errors)
     if not _write_summary_json(args, session):

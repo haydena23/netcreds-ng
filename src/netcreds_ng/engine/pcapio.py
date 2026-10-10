@@ -13,7 +13,7 @@ import struct
 import zlib
 from collections.abc import Iterator
 from dataclasses import dataclass
-from typing import BinaryIO, cast
+from typing import BinaryIO, NamedTuple, cast
 
 PCAP_MAGIC_US = 0xA1B2C3D4
 PCAP_MAGIC_NS = 0xA1B23C4D
@@ -28,9 +28,11 @@ class CaptureFormatError(Exception):
     """The capture file is not a supported format or is corrupt/truncated."""
 
 
-@dataclass(frozen=True)
-class RawFrame:
-    index: int  # 1-based frame number, as Wireshark shows it
+class RawFrame(NamedTuple):
+    """One captured frame. Immutable; a named tuple because one is built per frame (twice as fast as a
+    frozen dataclass, which matters when every parallel worker reads every frame)."""
+
+    index: int  # type: ignore[assignment]  # 1-based frame number, as Wireshark shows it (shadows tuple.index)
     timestamp: float  # seconds since epoch
     linktype: int
     data: bytes

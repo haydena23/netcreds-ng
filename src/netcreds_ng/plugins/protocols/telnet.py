@@ -104,10 +104,13 @@ class TelnetPlugin(ProtocolPlugin):
             if st.server_bytes > _GIVE_UP_BYTES:
                 ctx.detach()
             return  # strict mode: a prompt alone is not enough evidence on a non-Telnet port
-        if _PASS_PROMPT.search(stripped):
+        # Both prompts end in ":" and the tail is stripped of the whitespace \s matches: skip the
+        # regex searches (the cost of this plugin on bulk server traffic) unless it ends in one.
+        prompt = stripped.endswith(b":")
+        if prompt and _PASS_PROMPT.search(stripped):
             st.expecting, st.prompts_seen = "password", True
             st.typed.clear()
-        elif _USER_PROMPT.search(stripped):
+        elif prompt and _USER_PROMPT.search(stripped):
             st.expecting, st.prompts_seen = "username", True
             st.typed.clear()
         elif not st.prompts_seen and st.server_bytes > _GIVE_UP_BYTES:

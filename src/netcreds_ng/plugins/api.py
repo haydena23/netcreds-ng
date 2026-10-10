@@ -33,7 +33,10 @@ class Direction(enum.IntEnum):
 
     @property
     def other(self) -> Direction:
-        return Direction(1 - self)
+        return _OTHER[self]
+
+
+_OTHER = (Direction.SERVER_TO_CLIENT, Direction.CLIENT_TO_SERVER)  # Direction(1 - d), without the enum lookup
 
 
 class Transport(str, enum.Enum):

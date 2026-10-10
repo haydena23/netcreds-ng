@@ -60,7 +60,8 @@ python -B -m pytest -q -p no:cacheprovider           # leave no cache files behi
 | `test_heuristics.py` | Telnet heuristic evidence and strict mode |
 | `test_evidence.py` | evidence pcapng export and the pcapng writer |
 | `test_integrations.py` | CEF, syslog and chat webhooks; no traffic leaves the process |
-| `test_jobs.py` | parallel analysis gives the same result as a sequential run |
+| `test_jobs.py` | parallel analysis (one or several files, connections across files) gives exactly the sequential output |
+| `test_fast_paths.py` | the performance shortcuts give exactly the results of the checks they skip |
 | `test_cli.py` | end-to-end CLI behaviour, in-process and as a real subprocess |
 | `test_tui.py`, `test_filters.py` | headless live-table tests (Textual pilot) and the filter language |
 | `test_hpack.py` | HPACK decoder: RFC 7541 Appendix C examples and malformed input |
@@ -83,10 +84,12 @@ After changing fixtures, re-record the legacy goldens; see [Parity testing](pari
 ```bash
 python tools/bench.py --flows 20000                    # generate a capture and time the analysis
 python tools/bench.py --pcap capture.pcapng --profile  # profile an existing capture (cProfile top 25)
-python tools/bench.py --pcap a.pcap --pcap b.pcap --jobs 2
+python tools/bench.py --pcap a.pcap --pcap b.pcap --jobs 8
 ```
 
-The generated capture mixes credential-bearing protocols with bulk binary and HTTP traffic. Run it before and after engine or plugin changes to catch throughput regressions.
+The generated capture mixes credential-bearing protocols with bulk binary and HTTP traffic. Run it before and after engine or plugin changes to catch throughput regressions. On the development machine (8 cores), `--flows 20000` (188,000 frames) runs at about 21,000 frames/s with one process and about 79,000 with `--jobs 8`; the generated capture has only 250 host pairs, which limits how evenly the work divides. Timings vary by a few percent between runs; compare several.
+
+A performance change should keep the output byte-identical: dump every finding, the run counters and the warnings for a set of captures before and after (the real-traffic corpus, the fixtures and a generated capture) and compare them. Only `secret_fingerprint` differs between runs.
 
 ## Real-traffic validation
 

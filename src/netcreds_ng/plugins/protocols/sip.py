@@ -150,7 +150,11 @@ class SIPPlugin(ProtocolPlugin):
                 del buf[0]
                 continue
             eol = buf.find(b"\r\n")
-            if eol >= 0 and not self._looks_sip(bytes(buf[:eol])):
+            if eol < 0:  # no complete line, so no complete head: skip copying and parsing the buffer
+                if len(buf) >= _MAX_HEADER:
+                    ctx.detach()
+                return
+            if not self._looks_sip(bytes(buf[:eol])):
                 ctx.detach()
                 return
             msg = _parse_head(bytes(buf[:_MAX_HEADER]))

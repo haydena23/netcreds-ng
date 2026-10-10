@@ -4,6 +4,16 @@
 
 Python 3 port of net-creds, rebuilt as a plugin-based blue-team sniffer. The original net-creds behaviour is the parity floor, verified by tests against output recorded from the original Python 2 tool.
 
+### Faster analysis (2026-10-10)
+
+Same findings, faster. Measured with `tools/bench.py --flows 20000` (188,000 frames) on an 8-core machine.
+
+- **About 57% faster in one process** (13,300 to 20,900 frames/s); long bulk transfers about 80% faster. The engine skips detached plugins without looking at them, frees each closed connection's objects at once instead of leaving them to the cyclic garbage collector (which collected 3 million objects per benchmark run), and collects young objects less often while it works. `keyvalue`, `telnet`, `http`, `sip` and `ftp` skip work that cannot change their result; the HTTP response parser no longer rescans its whole buffer for every segment of a non-HTTP download.
+- **`-j N` now splits one capture across N worker processes**, not only several files: about 79,000 frames/s with `-j 8` (3.8 times one process; 4.2 times on a 940,000-frame capture). The traffic is divided by host pair and merged back, so the output (findings, order, counters, warnings) is the same as with `-j 1`, and connections now continue across rotated files in parallel mode too. By default the command line uses one worker per physical core (`-j 0`); `-j 1` keeps the old single-process behaviour, and the Python API (`SessionConfig.jobs`) still defaults to 1. Inputs under 16 MB stay sequential. See "Parallel analysis" in the user guide.
+- **Fixed** (old per-file `-j` mode): fragment counters (`ip_fragments_expired`, `ip_fragment_duplicates`) were reset to 0 after merging; cross-plugin secret merging (E-10) was off in workers.
+- **Changed:** idle connections are swept every 2,048 frames *read*, not every 2,048 decoded frames, so that parallel workers sweep at the same frames. On captures with many non-IP frames (ARP, LLDP...) a connection idle for longer than the timeout is closed sooner, as the timeout intends. A login split across such an idle period is then reported as a user name and a separate password rather than one credential. In the real-traffic corpus this changed one file's flow counters (4 more UDP flows) and no findings.
+- `RawFrame` is a named tuple instead of a frozen dataclass (same fields, immutable, faster to create).
+
 ### Better detection in the existing plugins (M32, 2026-10-09)
 
 The existing plugins find more of what is on the wire, with fewer false positives and duplicates. No new protocols.

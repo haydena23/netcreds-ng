@@ -35,7 +35,7 @@ sudo netcreds-ng                                   # sniff the default interface
 sudo netcreds-ng -i eth0 -f 10.0.0.5               # a given interface, ignoring one host
 sudo netcreds-ng -i eth0 --tui                     # live table you can pause and filter
 netcreds-ng -p capture.pcapng                      # read a capture file
-netcreds-ng -p captures/ -j 4                      # a directory, up to 4 files in parallel
+netcreds-ng -p captures/ -j 4                      # a directory, with 4 worker processes (default: one per core)
 netcreds-ng -p cap.pcap --jsonl findings.jsonl     # also write JSON Lines
 netcreds-ng -p cap.pcap --tls-keylog keys.log      # also look inside TLS sessions you hold keys for
 netcreds-ng --legacy -p cap.pcap                   # exactly what the original net-creds printed
@@ -100,7 +100,7 @@ office = ["email", "web", "ftp"]
 | `--webhook-format slack\|teams\|discord` | send a chat message instead of the JSON findings |
 | `--syslog udp://host:514` | send findings to a syslog collector as CEF; `tcp://` also works |
 | `--tls-keylog FILE` | decrypt TLS sessions present in an NSS key-log file (needs `[tls]`) |
-| `-j N`, `--jobs N` | analyse up to N capture files in parallel |
+| `-j N`, `--jobs N` | analyse with N worker processes, same output (default `0`: one per CPU core; `1`: none) |
 | `--dedup off\|run\|persistent` | duplicate suppression; `persistent` remembers across runs (`--dedup-db`) |
 | `--option http.cookies=all` | plugin options (e.g. `detection.bruteforce=10`) |
 | `--strict-heuristics` | fewer false positives: Telnet needs a Telnet port or option negotiation; disables `keyvalue` |

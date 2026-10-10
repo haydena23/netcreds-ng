@@ -45,7 +45,7 @@ TCP_PSH = 0x08
 TCP_ACK = 0x10
 
 
-@dataclass
+@dataclass(slots=True)
 class IPLayer:
     version: int
     src: str
@@ -63,7 +63,7 @@ class IPLayer:
         return self.more_fragments or self.frag_offset > 0
 
 
-@dataclass
+@dataclass(slots=True)
 class Packet:
     """A decoded frame. ``payload`` is the L4 payload (TCP/UDP data)."""
 
