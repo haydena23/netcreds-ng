@@ -44,6 +44,7 @@ class _State:
 
 class TelnetPlugin(ProtocolPlugin):
     name = "telnet"
+    wants_encrypted = False
     sets = ("remote-access", "legacy")
     description = "Telnet usernames/passwords typed after login prompts (any port)"
     default_ports = frozenset({23, 2323})

@@ -47,6 +47,7 @@ class _State:
 
 class KeyValuePlugin(ProtocolPlugin):
     name = "keyvalue"
+    wants_encrypted = False
     sets = ("generic", "legacy")
     description = "Generic user=/pass= credential patterns in non-HTTP cleartext streams (heuristic)"
     priority = 200

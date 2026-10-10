@@ -59,6 +59,7 @@ def _client_message_end(data: bytes, pos: int) -> int | None:
 
 class PostgresPlugin(ProtocolPlugin):
     name = "postgres"
+    wants_encrypted = False
     sets = ("databases",)
     description = "PostgreSQL logins: cleartext passwords and login metadata (any port)"
     default_ports = frozenset({5432})

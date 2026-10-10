@@ -52,6 +52,8 @@ DUP_WINDOW = 0.010
 #: (microseconds apart) from a fast retransmit (at least one round trip later), so the window is tight.
 DUP_WINDOW_NO_ID = 0.0002
 DUP_HISTORY = 4
+#: Banners that open an SSH connection (RFC 4253 section 4.2; 1.99 is SSH-2 with SSH-1 compatibility).
+SSH_BANNERS = (b"SSH-2.0-", b"SSH-1.99-", b"SSH-1.5-")
 
 
 @dataclass(eq=False, slots=True)
@@ -97,6 +99,8 @@ class _Flow:
     handshake: bool = False
     recent: tuple[list[tuple[Any, ...]], list[tuple[Any, ...]]] = field(default_factory=lambda: ([], []))
     touched: int = 0  # engine position of the flow's last packet: the flow table's order (emit_order)
+    probe: int = 0  # bit per direction whose first bytes are still to be checked for TLS/SSH (TCP only)
+    probe_head: tuple[bytes, bytes] = (b"", b"")  # first bytes per direction, while too few to decide
 
 
 #: Allocations between young-generation garbage collections while analysing (Python's default: 2000).
@@ -300,7 +304,8 @@ class Engine:
                     slot.twin, twin.twin = twin, slot
                     contexts.append(twin)
         streams = (TCPStream(), TCPStream()) if transport is Transport.TCP else None
-        flow = _Flow(info, contexts, list(contexts), streams, pkt.timestamp, certain=certain)
+        flow = _Flow(info, contexts, list(contexts), streams, pkt.timestamp, certain=certain,
+                     probe=3 if streams is not None else 0)  # fmt: skip
         self._flows[key] = flow
         if transport is Transport.TCP:
             self.stats.tcp_flows += 1
@@ -542,7 +547,35 @@ class Engine:
                        for plain in flow.tls.feed(side, chunk.data) if plain)  # fmt: skip
         return out
 
+    def _probe_encrypted(self, flow: _Flow, direction: Direction, chunks: list[Chunk]) -> None:
+        """Encrypted-flow bypass: look at the first bytes of each direction of a TCP connection.
+
+        A connection opening with a TLS ClientHello the engine cannot decrypt (no key log) or with an
+        SSH banner carries nothing a cleartext parser can read, so plugins with ``wants_encrypted =
+        False`` are detached before they see any of it. Reassembly and its counters carry on.
+        """
+        heads = flow.probe_head
+        data = heads[direction] + b"".join(c.data for c in chunks)
+        if not data:
+            return
+        encrypted = (self.tls is None and looks_like_client_hello(data)) or data.startswith(SSH_BANNERS)
+        if not encrypted and ((self.tls is None and len(data) < 6 and could_start_client_hello(data))
+                              or any(len(b) > len(data) and b.startswith(data) for b in SSH_BANNERS)):  # fmt: skip
+            # Too short to decide (a split first segment, E-8): wait for more. Plugins still get these bytes.
+            flow.probe_head = (data, heads[1]) if direction == 0 else (heads[0], data)
+            return
+        flow.probe &= ~(1 << direction)
+        flow.probe_head = (b"", b"")
+        if encrypted:
+            flow.probe = 0
+            self.stats.encrypted_flows += 1
+            for slot in flow.contexts:
+                if not slot.plugin.wants_encrypted:
+                    slot.ctx.detach()
+
     def _deliver(self, flow: _Flow, direction: Direction, chunks: list[Chunk], pkt: Packet | None) -> None:
+        if flow.probe & (1 << direction):
+            self._probe_encrypted(flow, direction, chunks)
         if self.tls is not None and flow.streams is not None and chunks:
             chunks = self._tls_filter(flow, direction, chunks)
         if not chunks:

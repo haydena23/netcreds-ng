@@ -158,6 +158,7 @@ class RunStats:
     evicted_flows: int = 0
     ambiguous_flows: int = 0  # client/server roles unknown: plugins were offered both orientations
     orientation_resolved: int = 0  # ambiguous (flow, plugin) pairs settled by a finding
+    encrypted_flows: int = 0  # TCP connections opening with TLS (no key log) or SSH: cleartext-only plugins skipped
     tls_sessions: int = 0  # TLS connections seen while a key log was loaded
     tls_decrypted: int = 0
     tls_no_key: int = 0

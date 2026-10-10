@@ -68,6 +68,7 @@ class _State:
 
 class KerberosPlugin(ProtocolPlugin):
     name = "kerberos"
+    wants_encrypted = False
     sets = ("directory", "legacy")
     description = "Kerberos principals, pre-auth encryption types, no-preauth accounts, failures (UDP/TCP)"
     transports = frozenset({Transport.UDP, Transport.TCP})

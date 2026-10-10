@@ -111,6 +111,7 @@ class _State:
 
 class RDPPlugin(ProtocolPlugin):
     name = "rdp"
+    wants_encrypted = False
     sets = ("remote-access",)
     description = "RDP security negotiation (standard RDP security / TLS without NLA / NLA) and mstshash usernames"
     default_ports = frozenset({3389})

@@ -97,6 +97,7 @@ def _digest_params(value: bytes) -> dict[str, str]:
 
 class SIPPlugin(ProtocolPlugin):
     name = "sip"
+    wants_encrypted = False
     sets = ("voip",)
     description = "SIP over UDP/TCP: Basic credentials, Digest authentication metadata, auth results"
     transports = frozenset({Transport.UDP, Transport.TCP})

@@ -87,6 +87,7 @@ Your plugin's options are on `self.options` (a dict from `--option acme.key=valu
 | `opt_in` | `False` | left out of the default selection; runs when named (`-P`, `--enable`, a set) or with `all` |
 | `sets` | `()` | [plugin sets](../guide/choosing-plugins.md) it belongs to, e.g. `("databases",)`; may name new sets. Set names must not clash with plugin names |
 | `priority` | 100 | order among plugins on a connection; lower runs first. Built-ins use 10–210 |
+| `wants_encrypted` | `True` | keep receiving connections that open with a TLS ClientHello the engine cannot decrypt (no key log) or with an SSH banner. Set `False` if the plugin only parses cleartext: the engine then detaches it from such connections before it sees any of their bytes, which saves most of the work on real networks. Every built-in plugin except `mssql` (which reads the ClientHello) sets `False` |
 
 ## Emitting findings
 

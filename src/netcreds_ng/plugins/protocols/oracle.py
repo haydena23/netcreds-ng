@@ -155,6 +155,7 @@ def _user_before(buf: bytes, k: int, klen: int) -> bytes | None:
 
 class OraclePlugin(ProtocolPlugin):
     name = "oracle"
+    wants_encrypted = False
     sets = ("databases",)
     description = "Oracle Net (TNS) logins: connect descriptor and O5LOGON metadata (any port)"
     default_ports = frozenset({1521})

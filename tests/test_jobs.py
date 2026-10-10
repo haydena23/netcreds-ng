@@ -24,6 +24,7 @@ CALLS: list[int] = []  # worker counts of the parallel runs, to prove the parall
 @pytest.fixture
 def always_parallel(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(parallel, "PARALLEL_MIN_BYTES", 0)  # checked in the parent only
+    monkeypatch.setattr(os, "cpu_count", lambda: 16)  # workers are capped at the CPU count (CI macOS has 3)
     original = parallel.run_parallel
 
     def recording(session: Session, paths: list[str], workers: int) -> None:

@@ -80,6 +80,7 @@ class _Reader:
 
 class MQTTPlugin(ProtocolPlugin):
     name = "mqtt"
+    wants_encrypted = False
     sets = ("iot",)
     description = "MQTT CONNECT username/password and CONNACK result (any port)"
     default_ports = frozenset({1883})

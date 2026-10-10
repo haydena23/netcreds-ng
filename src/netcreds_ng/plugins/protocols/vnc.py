@@ -49,6 +49,7 @@ def _effective_minor(minor: int) -> int:
 
 class VNCPlugin(ProtocolPlugin):
     name = "vnc"
+    wants_encrypted = False
     sets = ("remote-access",)
     description = "VNC/RFB security type, unauthenticated sessions and auth results (any port)"
     default_ports = frozenset(range(5900, 5907))

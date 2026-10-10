@@ -91,6 +91,7 @@ class _State:
 
 class SecretsPlugin(ProtocolPlugin):
     name = "secrets"
+    wants_encrypted = False
     sets = ("generic",)
     description = "Cloud/API credential formats (AWS, GCP, Azure, GitHub, Slack, Stripe, PEM keys) in cleartext streams"
     priority = 210  # after http (50) and keyvalue (200)

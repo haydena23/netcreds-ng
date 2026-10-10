@@ -26,6 +26,7 @@ class _State:
 
 class FTPPlugin(ProtocolPlugin):
     name = "ftp"
+    wants_encrypted = False
     sets = ("file-transfer", "legacy")
     description = "FTP USER/PASS logins and login success/failure (any port)"
     default_ports = frozenset({21})

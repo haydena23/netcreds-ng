@@ -20,6 +20,7 @@ import tempfile
 import time
 
 from netcreds_ng.engine.pcapio import PcapWriter
+from netcreds_ng.model import RunStats
 from netcreds_ng.plugins.registry import load_registry
 from netcreds_ng.session import Session, SessionConfig
 from netcreds_ng.testing.packets import TCPConversation, udp_frame
@@ -61,14 +62,14 @@ def build(path: str, flows: int, seed: int = 7) -> int:
     return frames
 
 
-def analyse(paths: list[str], jobs: int) -> tuple[int, int, float]:
+def analyse(paths: list[str], jobs: int) -> tuple[RunStats, float]:
     reg = load_registry(use_entry_points=False)
     session = Session(reg, SessionConfig(jobs=jobs))
     session.open()
     start = time.perf_counter()
     session.run_files(paths)
     session.close()
-    return session.stats.frames, session.stats.findings, time.perf_counter() - start
+    return session.stats, time.perf_counter() - start
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -89,13 +90,17 @@ def main(argv: list[str] | None = None) -> int:
     if args.profile:
         prof = cProfile.Profile()
         prof.enable()
-    frames, findings, secs = analyse(paths, args.jobs)
+    stats, secs = analyse(paths, args.jobs)
+    frames, findings = stats.frames, stats.findings
     if args.profile:
         prof.disable()
         pstats.Stats(prof, stream=sys.stdout).sort_stats("cumulative").print_stats(25)
     size = sum(os.path.getsize(p) for p in paths) / 1e6
     print(f"analysed {frames:,} frames ({size:.1f} MB) -> {findings:,} findings in {secs:.2f}s: "
           f"{frames / secs:,.0f} frames/s, {size / secs:.1f} MB/s (jobs={args.jobs})")  # fmt: skip
+    if stats.tcp_flows:
+        print(f"encrypted-flow bypass: {stats.encrypted_flows:,} of {stats.tcp_flows:,} TCP flows "
+              f"({stats.encrypted_flows / stats.tcp_flows:.0%})")  # fmt: skip
     return 0
 
 

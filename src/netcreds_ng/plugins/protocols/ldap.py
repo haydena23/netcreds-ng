@@ -88,6 +88,7 @@ def _frame(buf: bytearray) -> tuple[int, int] | None:
 
 class LDAPPlugin(ProtocolPlugin):
     name = "ldap"
+    wants_encrypted = False
     sets = ("directory",)
     description = "LDAP simple binds, SASL bind mechanisms and bind results (any port)"
     default_ports = frozenset({389, 3268})

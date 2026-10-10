@@ -143,6 +143,7 @@ def _extra(attrs: list[tuple[int, bytes]]) -> dict[str, object]:
 
 class RadiusPlugin(ProtocolPlugin):
     name = "radius"
+    wants_encrypted = False
     sets = ("aaa", "network")
     description = "RADIUS: PAP/CHAP/MS-CHAP/EAP login metadata, EAP identities, access results"
     transports = frozenset({Transport.UDP})

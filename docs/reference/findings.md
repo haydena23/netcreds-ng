@@ -146,6 +146,7 @@ Two findings are duplicates when these match: `protocol`, `kind`, source IP, des
 | `dropped_packets` | live capture: packets lost because analysis fell behind |
 | `evicted_flows` | connections closed because the flow table was full |
 | `ambiguous_flows`, `orientation_resolved` | connections with unknown client/server roles; plugin orientations settled by a finding |
+| `encrypted_flows` | TCP connections opening with TLS (without a key log) or SSH, skipped by cleartext-only plugins |
 | `tls_sessions`, `tls_decrypted`, `tls_no_key`, `tls_unsupported`, `tls_failed` | TLS sessions with a key log loaded |
 | `findings`, `duplicates` | findings published; duplicates suppressed |
 | `plugin_errors` | errors per plugin, enricher (`enricher:<name>`) and sink (`sink:<name>`) |

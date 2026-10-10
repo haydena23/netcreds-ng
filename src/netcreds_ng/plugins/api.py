@@ -134,6 +134,10 @@ class ProtocolPlugin:
     #: built-in sets or name new ones; set names must not clash with plugin names.
     sets: ClassVar[tuple[str, ...]] = ()
     priority: ClassVar[int] = 100
+    #: Keep receiving a TCP connection that starts with a TLS ClientHello the engine cannot decrypt
+    #: (no key log) or with an SSH banner. Plugins that only parse cleartext set this to False and
+    #: are detached from such connections before seeing any of their bytes (encrypted-flow bypass).
+    wants_encrypted: ClassVar[bool] = True
 
     def __init__(self, options: dict[str, Any] | None = None) -> None:
         self.options = options or {}

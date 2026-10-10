@@ -80,6 +80,7 @@ def _parse_resp(buf: bytearray) -> tuple[list[bytes], int] | None:
 
 class RedisPlugin(ProtocolPlugin):
     name = "redis"
+    wants_encrypted = False
     sets = ("databases",)
     description = "Redis AUTH / HELLO AUTH passwords and their results (any port)"
     default_ports = frozenset({6379})

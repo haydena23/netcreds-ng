@@ -91,6 +91,7 @@ def _lenenc(buf: bytes, pos: int) -> tuple[int, int] | None:
 
 class MySQLPlugin(ProtocolPlugin):
     name = "mysql"
+    wants_encrypted = False
     sets = ("databases",)
     description = "MySQL/MariaDB logins: cleartext passwords and login metadata (any port)"
     default_ports = frozenset({3306})

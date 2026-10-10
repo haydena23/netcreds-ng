@@ -90,6 +90,7 @@ def _imap_args(data: bytes) -> list[bytes]:
 
 class MailPlugin(ProtocolPlugin):
     name = "mail"
+    wants_encrypted = False
     sets = ("email", "legacy")
     description = "SMTP/POP3/IMAP logins, SASL mechanisms and results (any port)"
     default_ports = frozenset({25, 110, 143, 465, 587, 993, 995, 2525})
